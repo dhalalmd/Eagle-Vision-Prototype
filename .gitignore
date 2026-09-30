@@ -1,0 +1,12 @@
+.env
+*.pt
+*.mp4
+data/
+node_modules/
+__pycache__/
+*.pyc
+certs/
+dist/
+build/
+.venv/
+venv/
