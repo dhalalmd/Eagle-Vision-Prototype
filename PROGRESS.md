@@ -26,7 +26,7 @@ M00 core: laptop webcam + phone camera live on dashboard at the same time, with 
 
 | ID | Module | Phase | Status | Owner | Branch | Notes |
 |---|---|---|---|---|---|---|
-| M00 | core (ingest, camera manager, pipeline, live view) | P0 | TODO | | | Prompt ready: `prompts/M00_core_prompt.md` |
+| M00 | core (ingest, camera manager, pipeline, live view) | P0 | DONE | Antigravity | feat/m00 | Ingest (webcam, url, file, phone), CameraManager, Pipeline, Streamer |
 | M01 | detection | P1 | TODO | | | |
 | M02 | tracking | P1 | TODO | | | |
 | M03 | intrusion | P1 | TODO | | | |
@@ -34,7 +34,7 @@ M00 core: laptop webcam + phone camera live on dashboard at the same time, with 
 | M05 | evidence | P1 | TODO | | | |
 | M06 | database | P1 | TODO | | | |
 | M07 | alerts | P1 | TODO | | | |
-| M08 | dashboard | P1 | TODO | | | Camera management built first with M00; other pages later |
+| M08 | dashboard | P1 | WIP | Antigravity | feat/m00 | Camera management built first with M00; other pages later |
 | M09 | tamper | P2 | TODO | | | |
 | M10 | night_enhance | P2 | TODO | | | |
 | M11 | loitering | P2 | TODO | | | |
@@ -49,12 +49,12 @@ M00 core: laptop webcam + phone camera live on dashboard at the same time, with 
 - [x] Project summary analysed (SIH26187)
 - [x] `AGENTS.md` written (modular rules, shared contract, module list, API contract)
 - [x] `PROGRESS.md` created
-- [ ] Git repo initialised + GitHub remote linked
-- [ ] `.gitignore` added (`.env`, `*.pt`, `*.mp4`, `data/evidence/`, `node_modules/`, `__pycache__/`)
-- [ ] Folder structure created (per AGENTS.md section 3)
-- [ ] `shared/schemas.py`, `shared/constants.py`, `modules/base.py` created exactly as in AGENTS.md
-- [ ] `config.yaml` + `.env.example` created
-- [ ] Sample video added to `data/samples/`
+- [x] Git repo initialised + GitHub remote linked
+- [x] `.gitignore` added (`.env`, `*.pt`, `*.mp4`, `data/evidence/`, `node_modules/`, `__pycache__/`)
+- [x] Folder structure created (per AGENTS.md section 3)
+- [x] `shared/schemas.py`, `shared/constants.py`, `modules/base.py` created exactly as in AGENTS.md
+- [x] `config.yaml` + `.env.example` created
+- [x] Sample video added to `data/samples/`
 
 ## Decisions
 
@@ -74,6 +74,7 @@ M00 core: laptop webcam + phone camera live on dashboard at the same time, with 
 
 | Date | Agent/Person | Module | What changed | Next |
 |---|---|---|---|---|
+| 2026-10-01 | Antigravity | M00 / M08 | Built M00 Core (ingest, camera manager, pipeline, streamer, registry) + M08 Camera Management Dashboard (Vite + React + Tailwind + QR code) | Build M01 Detection |
 | 2026-10-01 | Claude | docs | `AGENTS.md`: added camera contract (camera record, CRUD endpoints, `/api/webcams`, `/api/system/info`, `/ws/phone`, `/phone`), `camera_manager.py`, low-latency rules, phone-camera design (HTTPS + WebSocket), dashboard design. Created `prompts/M00_core_prompt.md` | Run the M00 prompt in Antigravity |
 | 2026-10-01 | Claude | docs | `AGENTS.md`: added sections 0 (START HERE task protocol), 14 (standalone mode, test fixtures, Delivery report), 15 (integrating separately built modules), 16 (free-tier output rules). `PROGRESS.md`: added usage guide + merge tracker. Both files saved in `sih-docs/` | Create skeleton / build M00 core |
 | 2026-09-30 | Claude | docs | Created `PROGRESS.md` | Initialise git repo, create skeleton |
