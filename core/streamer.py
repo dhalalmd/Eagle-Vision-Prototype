@@ -2,7 +2,7 @@ import time
 import cv2
 import numpy as np
 from typing import Generator, Optional
-from shared.schemas import FrameContext
+from shared.schemas import FrameContext, ObjectClass
 from shared.logger import logger
 
 class Streamer:
@@ -10,22 +10,37 @@ class Streamer:
         pass
 
     def draw_overlay(self, ctx: FrameContext) -> np.ndarray:
-        """Draws bounding boxes, labels, zones on the frame."""
-        frame = ctx.frame.copy()
+        """Draws bounding boxes and labels on frame.
         
-        # Draw detections if any
-        for det in ctx.detections:
-            x1, y1, x2, y2 = det.bbox
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
-            cv2.putText(frame, f"{det.cls.value} {det.conf:.2f}", (x1, max(y1 - 5, 15)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+        Labels:
+        - If tracking is on (tracks exist): "#<id> person" / "#<id> vehicle"
+        - If tracking is off (only detections exist): "person" / "vehicle"
+        Colors:
+        - Person: Green (0, 255, 0)
+        - Vehicle: Orange (0, 165, 255)
+        """
+        if ctx.frame is None:
+            return None
+        frame = ctx.frame.copy()
 
-        # Draw tracks if any
-        for trk in ctx.tracks:
-            x1, y1, x2, y2 = trk.bbox
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(frame, f"ID:{trk.track_id} {trk.cls.value}", (x1, max(y1 - 5, 15)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        # If tracks are available, draw tracks with #<id> <cls>
+        if ctx.tracks:
+            for trk in ctx.tracks:
+                x1, y1, x2, y2 = trk.bbox
+                color = (0, 255, 0) if trk.cls == ObjectClass.PERSON else (0, 165, 255)
+                label = f"#{trk.track_id} {trk.cls.value}"
+                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                cv2.putText(frame, label, (x1, max(y1 - 5, 15)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+        elif ctx.detections:
+            # If tracking is off or no tracks, draw plain detections
+            for det in ctx.detections:
+                x1, y1, x2, y2 = det.bbox
+                color = (0, 255, 0) if det.cls == ObjectClass.PERSON else (0, 165, 255)
+                label = f"{det.cls.value}"
+                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                cv2.putText(frame, label, (x1, max(y1 - 5, 15)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
         return frame
 
@@ -38,8 +53,9 @@ class Streamer:
             logger.error(f"Error encoding frame to JPEG: {e}")
         return None
 
-def generate_mjpeg_stream(camera_manager, camera_id: str) -> Generator[bytes, None, None]:
+def generate_mjpeg_stream(camera_manager, camera_id: str, pipeline=None) -> Generator[bytes, None, None]:
     last_ts = 0.0
+    streamer = Streamer()
     while True:
         reader = camera_manager.get_reader(camera_id)
         if reader and reader.is_online():
@@ -48,11 +64,32 @@ def generate_mjpeg_stream(camera_manager, camera_id: str) -> Generator[bytes, No
                 frame, ts = latest
                 if ts > last_ts:
                     last_ts = ts
-                    # Encode frame with quality 70 for low latency
-                    _, jpeg_buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
-                    jpeg_bytes = jpeg_buf.tobytes()
-                    yield (
-                        b"--frame\r\n"
-                        b"Content-Type: image/jpeg\r\n\r\n" + jpeg_bytes + b"\r\n"
-                    )
-        time.sleep(0.03) # ~30 FPS polling loop
+                    
+                    # Draw overlay from pipeline if available
+                    annotated_frame = frame
+                    if pipeline is not None:
+                        ctx = pipeline.get_latest_context(camera_id)
+                        if ctx is not None:
+                            # Attach latest frame copy to ctx for overlay drawing
+                            ctx_copy = FrameContext(
+                                camera_id=ctx.camera_id,
+                                frame_id=ctx.frame_id,
+                                timestamp=ctx.timestamp,
+                                frame=frame,
+                                detections=ctx.detections,
+                                tracks=ctx.tracks,
+                                events=ctx.events,
+                                extras=ctx.extras
+                            )
+                            drawn = streamer.draw_overlay(ctx_copy)
+                            if drawn is not None:
+                                annotated_frame = drawn
+
+                    # Encode JPEG frame with quality 70 for low latency
+                    jpeg_bytes = streamer.encode_jpeg(annotated_frame, quality=70)
+                    if jpeg_bytes:
+                        yield (
+                            b"--frame\r\n"
+                            b"Content-Type: image/jpeg\r\n\r\n" + jpeg_bytes + b"\r\n"
+                        )
+        time.sleep(0.03)  # ~30 FPS streaming loop

@@ -1,17 +1,59 @@
 cameras:
-  - {id: cam1, name: "Laptop webcam", type: webcam, source: "0", enabled: true}
-
+- enabled: true
+  id: cam1
+  name: Laptop webcam
+  source: '0'
+  type: webcam
 modules:
-  detection:   {enabled: false, model: yolov8n.pt, conf: 0.4, device: auto, frame_skip: 0}
-  tracking:    {enabled: false}
-  intrusion:   {enabled: false, cooldown_s: 10, zones: [{id: z1, name: "Border line", points: [[0.1,0.6],[0.9,0.6],[0.9,0.9],[0.1,0.9]]}]}
-  event_engine: {enabled: false, cooldown_s: 10, use_redis: false}
-  evidence:    {enabled: false, pre_s: 5, post_s: 5}
-  database:    {enabled: false, url: "sqlite:///data/events.db"}
-  alerts:      {enabled: false}
-  tamper:      {enabled: false}
-  night_enhance: {enabled: false, brightness_threshold: 60}
-  loitering:   {enabled: false, dwell_s: 30}
-  object_left: {enabled: false, static_s: 60}
-  anpr:        {enabled: false}
-  emergency_trigger: {enabled: false, simulate: true}
+  alerts:
+    enabled: false
+  anpr:
+    enabled: false
+  database:
+    enabled: false
+    url: sqlite:///data/events.db
+  detection:
+    conf: 0.4
+    device: auto
+    enabled: true
+    frame_skip: 0
+    model: yolov8n.pt
+  emergency_trigger:
+    enabled: false
+    simulate: true
+  event_engine:
+    cooldown_s: 10
+    enabled: false
+    use_redis: false
+  evidence:
+    enabled: false
+    post_s: 5
+    pre_s: 5
+  intrusion:
+    cooldown_s: 10
+    enabled: false
+    zones:
+    - id: z1
+      name: Border line
+      points:
+      - - 0.1
+        - 0.6
+      - - 0.9
+        - 0.6
+      - - 0.9
+        - 0.9
+      - - 0.1
+        - 0.9
+  loitering:
+    dwell_s: 30
+    enabled: false
+  night_enhance:
+    brightness_threshold: 60
+    enabled: false
+  object_left:
+    enabled: false
+    static_s: 60
+  tamper:
+    enabled: false
+  tracking:
+    enabled: true

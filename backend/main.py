@@ -10,6 +10,7 @@ import backend.api as api_module
 import backend.ws as ws_module
 from core.camera_manager import CameraManager
 from core.registry import ModuleRegistry
+from core.pipeline import Pipeline
 from shared.logger import logger
 from scripts.gen_cert import generate_self_signed_cert
 
@@ -24,16 +25,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize core managers
+# Register API & WebSocket routers
+app.include_router(api_module.router, prefix="/api")
+app.include_router(ws_module.router)
+
+# Initialize core managers & pipeline
 camera_manager = CameraManager()
 module_registry = ModuleRegistry()
+pipeline = Pipeline(camera_manager, module_registry)
 
 api_module.camera_manager = camera_manager
 api_module.module_registry = module_registry
+api_module.pipeline = pipeline
 ws_module.camera_manager = camera_manager
 
-app.include_router(api_module.router, prefix="/api")
-app.include_router(ws_module.router)
+@app.on_event("startup")
+def startup_event():
+    pipeline.start()
+    logger.info("Pipeline started on application startup.")
 
 @app.get("/phone", response_class=HTMLResponse)
 def get_phone_page(cam: str = "cam_phone"):
@@ -45,7 +54,8 @@ def get_phone_page(cam: str = "cam_phone"):
 
 @app.on_event("shutdown")
 def shutdown_event():
-    logger.info("Shutting down camera manager readers...")
+    logger.info("Stopping pipeline and camera manager readers...")
+    pipeline.stop()
     for cam_id in list(camera_manager.readers.keys()):
         camera_manager._stop_reader(cam_id)
 

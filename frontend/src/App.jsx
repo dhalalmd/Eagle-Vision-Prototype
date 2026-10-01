@@ -5,6 +5,7 @@ import AlertsPanel from './components/AlertsPanel';
 import AddCameraModal from './components/AddCameraModal';
 import LiveViewPage from './pages/LiveViewPage';
 import CamerasPage from './pages/CamerasPage';
+import ModulesPage from './pages/ModulesPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 
 export default function App() {
@@ -109,7 +110,7 @@ export default function App() {
               />
             )}
             {activeTab === 'events' && <PlaceholderPage title="Events History" moduleCode="M04 / M07" />}
-            {activeTab === 'modules' && <PlaceholderPage title="AI Module Toggles" moduleCode="M08 Phase 2" />}
+            {activeTab === 'modules' && <ModulesPage />}
             {activeTab === 'settings' && <PlaceholderPage title="System Settings" moduleCode="M18" />}
           </main>
 

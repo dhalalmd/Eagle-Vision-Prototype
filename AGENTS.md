@@ -530,3 +530,6 @@ Status: `Open` · `Done` · `superseded`.
 | R07 | 2026-10-01 | AI must update AGENTS.md (new instructions) and PROGRESS.md automatically on any platform, without being told | Done | Section 0, step 7 |
 | R08 | 2026-10-01 | Keep code short, simple and easy to read | Done | Section 11 |
 | R09 | 2026-10-01 | No re-uploading AGENTS.md/PROGRESS.md each time: they live in the project root, the AI reads PROGRESS.md itself at session start and updates both files itself | Done | Section 0 |
+| R10 | 2026-10-01 | Build M01 detection + M02 tracking in one task with YOLOv8n on CPU and stable track IDs | Done | M01, M02 |
+| R11 | 2026-10-01 | Cross-camera tracking via Re-ID (M15), wanted after M03 | Open | M15 |
+| R12 | 2026-10-01 | Incident log via M04 + M06, wanted next | Open | M04, M06 |

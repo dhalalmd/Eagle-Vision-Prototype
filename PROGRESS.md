@@ -27,8 +27,8 @@ M00 core: laptop webcam + phone camera live on dashboard at the same time, with 
 | ID | Module | Phase | Status | Owner | Branch | Notes |
 |---|---|---|---|---|---|---|
 | M00 | core (ingest, camera manager, pipeline, live view) | P0 | DONE | Antigravity | feat/m00 | Ingest (webcam, url, file, phone), CameraManager, Pipeline, Streamer |
-| M01 | detection | P1 | TODO | | | |
-| M02 | tracking | P1 | TODO | | | |
+| M01 | detection | P1 | DONE | Antigravity | feat/detection-tracking | YOLOv8n object detection for person & vehicle classes (conf 0.4, imgsz 480) |
+| M02 | tracking | P1 | DONE | Antigravity | feat/detection-tracking | ByteTrack multi-object tracker assigning stable track IDs per camera |
 | M03 | intrusion | P1 | TODO | | | |
 | M04 | event_engine | P1 | TODO | | | |
 | M05 | evidence | P1 | TODO | | | |
@@ -70,11 +70,13 @@ M00 core: laptop webcam + phone camera live on dashboard at the same time, with 
 | 2026-10-01 | Phone camera = phone browser page pushing JPEG frames over WebSocket (HTTPS required); fallback: "IP Webcam" app as `url` camera |
 | 2026-10-01 | Modules may be built separately on different platforms/folders: upload AGENTS.md + PROGRESS.md, name one module, AI builds it standalone with mocks, then it is merged into main |
 | 2026-10-01 | Tasks B1, F1, F2 completed: Live page layout (1/2/4/9/auto + grid + paging + persistence), Camera image settings (clamping, reset endpoint, backend worker apply, frontend sliders/toggles/preview), Phone camera app UI (OFF/ON, torch/snapshot/grid/mirror/settings, websocket off/ping/pong, camera note) |
+| 2026-10-01 | Detection (YOLOv8n) and Tracking (ByteTrack) execute in dedicated per-camera worker threads capped at max_fps (default 8) to maintain full stream FPS |
 
 ## Change log (newest first)
 
 | Date | Agent/Person | Module | What changed | Next |
 |---|---|---|---|---|
+| 2026-10-01 | Antigravity | M01 / M02 | Built M01 Detection (YOLOv8n) + M02 Tracking (ByteTrack) on feat/detection-tracking branch with async 8 FPS analysis loop & streamer overlay (#<id> person / vehicle) | Build M03 Intrusion |
 | 2026-10-01 | Antigravity | M00 / M08 | Fixed Live page layout (B1: 1/2/4/9/auto grid, pagination, localStorage), camera settings (F1: LUT brightness/contrast, clamp, reset API, Edit modal preview), phone camera app (F2: camera ON/OFF, torch, snapshot, grid, mirror, settings sheet, WebSocket off/ping/pong) | Build M01 Detection |
 | 2026-10-01 | Antigravity | M00 / M08 | Built M00 Core (ingest, camera manager, pipeline, streamer, registry) + M08 Camera Management Dashboard (Vite + React + Tailwind + QR code) | Build M01 Detection |
 | 2026-10-01 | Claude | docs | `AGENTS.md`: added camera contract (camera record, CRUD endpoints, `/api/webcams`, `/api/system/info`, `/ws/phone`, `/phone`), `camera_manager.py`, low-latency rules, phone-camera design (HTTPS + WebSocket), dashboard design. Created `prompts/M00_core_prompt.md` | Run the M00 prompt in Antigravity |

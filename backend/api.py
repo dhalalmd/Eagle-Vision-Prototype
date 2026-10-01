@@ -9,6 +9,7 @@ from backend.models import CameraCreate, CameraUpdate, SystemInfo
 from core.camera_manager import CameraManager
 from core.streamer import generate_mjpeg_stream
 from core.registry import ModuleRegistry
+from core.pipeline import Pipeline
 from shared.logger import logger
 
 router = APIRouter()
@@ -16,6 +17,7 @@ router = APIRouter()
 # Global instances set during app initialization
 camera_manager: Optional[CameraManager] = None
 module_registry: Optional[ModuleRegistry] = None
+pipeline: Optional[Pipeline] = None
 
 def get_lan_ip() -> str:
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -99,7 +101,7 @@ def stream_mjpeg(cam_id: str):
         raise HTTPException(status_code=404, detail="Camera not found")
 
     return StreamingResponse(
-        generate_mjpeg_stream(camera_manager, cam_id),
+        generate_mjpeg_stream(camera_manager, cam_id, pipeline=pipeline),
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
 
