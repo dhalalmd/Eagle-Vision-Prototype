@@ -7,7 +7,7 @@ If something here conflicts with your own habits, **this file wins**. If unsure,
 
 ## 0. START HERE — how this file is used
 
-The user uploads **AGENTS.md + PROGRESS.md** to you (any AI platform, possibly a fresh empty folder) and gives **one task**, for example:
+**AGENTS.md and PROGRESS.md live in the project root and are the master copies.** Your tool may load AGENTS.md automatically; **you must read PROGRESS.md yourself at the start of every session. Never ask the user to upload either file.** Only if neither file is in the folder (fresh folder or new platform) will the user attach them once: save both into the project root. The user then gives you **one task**, for example:
 - "Build M00 core"
 - "Build module M11 loitering"
 - "Fix intrusion" / "Improve detection speed"
@@ -21,7 +21,11 @@ Do exactly that task, nothing more. Your steps:
 4. Build only: `modules/<name>/` (`module.py`, `demo.py`, `requirements.txt`, `README.md`), `tests/test_<name>.py`, and the `config.yaml` block. If the module's `requires` are not present, use mocks (section 14). Do not build the required modules.
 5. Write **complete, runnable files**. No placeholders, no "rest of code here", no pseudo-code, no TODO stubs.
 6. Do not ask questions unless the task is impossible. State assumptions in one line and proceed.
-7. Finish with the **Delivery report** (section 14).
+7. **Keep the docs current, automatically. Never wait to be asked.** Every time the user gives a new instruction, requirement, preference, bug report or decision (any message, any platform):
+   - add a dated one-line row to **section 17** of AGENTS.md, and edit the relevant section too if it changes how things must be built;
+   - update **PROGRESS.md** (module status, change log, decisions, open issues).
+   A change the user asks for counts as approved, including contract changes: also add a line to `docs/CONTRACT_CHANGELOG.md`. Edit both files **in place in the project root** (do not only print them) and include them in your commit. Never delete old rows; mark them `superseded`. If you truly have no file access, print the exact lines for the user to paste.
+8. Finish with the **Delivery report** (section 14), including the `DOCS UPDATED:` line.
 
 Sections 9 and 12 mention git. If there is no git repo in your folder, skip the git steps and still deliver everything else.
 
@@ -51,7 +55,7 @@ Ingest → [preprocess modules] → detection → tracking → [analyse modules]
 ```
 AGENTS.md  PROGRESS.md  config.yaml  .env.example  docker-compose.yml  requirements.txt
 shared/     schemas.py  constants.py  config.py  logger.py     <- SHARED CONTRACT
-core/       ingest.py  camera_manager.py  pipeline.py  registry.py  streamer.py
+core/       ingest.py  camera_manager.py  image_adjust.py  pipeline.py  registry.py  streamer.py
 modules/    base.py  <name>/module.py  <name>/demo.py  <name>/requirements.txt
 backend/    main.py  api.py  ws.py  db.py  models.py  static/phone.html
 frontend/   (React + Tailwind)
@@ -96,7 +100,7 @@ Build order: M00 → M01 → M02 → M03 → M04 → M05 → M06 → M07 → M08
 ## 5. SHARED CONTRACT — single source of truth
 
 Create these files **exactly** as below. Do not rename, reorder or remove any field/name.
-Need a change? **Stop and ask the user.** If approved, edit here and in `shared/` together and add a line to `docs/CONTRACT_CHANGELOG.md`.
+Need a change the user did not ask for? **Stop and ask the user.** If the user asked for it or approved it, edit here and in `shared/` together and add a line to `docs/CONTRACT_CHANGELOG.md`.
 
 ### shared/schemas.py
 ```python
@@ -281,11 +285,12 @@ modules:
 |---|---|---|
 | GET | `/api/cameras` | list cameras (camera record below, with live fields) |
 | POST | `/api/cameras` | add `{name, type, source, enabled}` → returns record (id auto-assigned: cam1, cam2…) |
-| PATCH | `/api/cameras/{id}` | edit `name`, `source`, `enabled` |
+| PATCH | `/api/cameras/{id}` | edit `name`, `source`, `enabled`, `settings` (partial; server clamps to the ranges below) |
 | DELETE | `/api/cameras/{id}` | remove; stops its worker and releases the device |
+| POST | `/api/cameras/{id}/reset-settings` | reset `settings` to defaults |
 | GET | `/api/webcams` | local webcam indexes available `[{index, name}]` (probe 0–4, skip ones in use) |
 | GET | `/api/system/info` | `{lan_ip, http_port, https_port}` |
-| WS | `/ws/phone/{camera_id}` | phone pushes binary JPEG frames |
+| WS | `/ws/phone/{camera_id}` | phone pushes binary JPEG frames. Text messages: phone→server `off` (camera paused), `ping:<ms>`; server→phone `pong:<ms>` |
 | GET | `/phone?cam={camera_id}` | phone capture page (static HTML) |
 | GET | `/api/stream/{camera_id}` | MJPEG live stream (annotated) |
 | WS | `/ws/alerts` | pushes `Event.to_dict()` JSON per alert |
@@ -299,10 +304,27 @@ modules:
 Camera record (JSON, exact keys):
 ```json
 {"id": "cam1", "name": "Laptop webcam", "type": "webcam", "source": "0", "enabled": true,
- "status": "online", "fps": 24.5, "last_frame_age_ms": 40}
+ "settings": {"brightness": 0, "contrast": 1.0, "saturation": 1.0, "zoom": 1.0, "rotate": 0,
+              "flip_h": false, "flip_v": false, "grayscale": false, "invert_colors": false},
+ "status": "online", "fps": 24.5, "last_frame_age_ms": 40, "note": ""}
 ```
 - `type`: `webcam` | `phone` | `url` | `file`. `source`: webcam → device index as string; phone → `""` (frames are pushed); url → `rtsp://` or `http://` MJPEG URL (e.g. "IP Webcam" phone app); file → path (loops).
-- `status`: `online` | `connecting` | `offline` | `error`. Stored fields: `id, name, type, source, enabled`. Live fields (`status, fps, last_frame_age_ms`) are computed, never stored.
+- `status`: `online` | `connecting` | `offline` | `error`. Stored fields: `id, name, type, source, enabled, settings`. Live fields (`status, fps, last_frame_age_ms, note`) are computed, never stored. `note` is a short reason, e.g. `"paused by phone"`.
+- `settings` (all optional in PATCH; unknown keys ignored; values clamped):
+
+| key | type | range | default | effect |
+|---|---|---|---|---|
+| `brightness` | int | -100..100 | 0 | added to pixel values |
+| `contrast` | float | 0.5..2.0 | 1.0 | multiplier |
+| `saturation` | float | 0.0..2.0 | 1.0 | colour strength |
+| `zoom` | float | 1.0..3.0 | 1.0 | centre crop, scaled back up |
+| `rotate` | int | 0, 90, 180, 270 | 0 | clockwise |
+| `flip_h` | bool | | false | mirror left-right |
+| `flip_v` | bool | | false | flip upside-down |
+| `grayscale` | bool | | false | black and white |
+| `invert_colors` | bool | | false | colour negative |
+
+- Applied **server-side in the camera worker, right after reading the frame and before `FrameContext` is built**, so the dashboard stream and all modules see the same adjusted image. Order: rotate → flip → zoom → brightness/contrast → saturation → grayscale → invert. Skip every step that is at its default (zero cost when untouched). Use a LUT for brightness/contrast.
 - Until M06 exists, cameras persist in `data/cameras.json`.
 
 DB tables (from M06): `events` (mirrors `Event` fields), `zones`, `cameras`, `audit_log` (who, action, time).
@@ -332,6 +354,7 @@ Integration test: `python -m core.pipeline --only detection,tracking,intrusion` 
 - `core/camera_manager.py`: `CameraManager` with `add`, `remove`, `update`, `list`, `get_latest_jpeg`. One worker thread per camera. Persists to `data/cameras.json` (seeded from `config.yaml` once). Add/remove work at runtime without restart; `remove` stops the thread and releases the device.
 - `pipeline.py`: per-camera loop builds `FrameContext`, runs enabled modules. **Must work with zero modules.**
 - `streamer.py`: keeps the newest JPEG per camera; MJPEG endpoint serves it.
+- `image_adjust.py`: `apply_settings(frame, settings) -> frame` (section 8 table). Called by the camera worker.
 
 *Low-latency rules (mandatory):*
 1. Reader thread keeps **only the latest frame** (no queue, no backlog). Set `CAP_PROP_BUFFERSIZE=1`.
@@ -340,9 +363,16 @@ Integration test: `python -m core.pipeline --only detection,tracking,intrusion` 
 4. A slow module or slow viewer must never block a reader. Drop frames, never queue them.
 5. `online` if a frame arrived within 3 s, else `offline`. Auto-reconnect with backoff.
 
-*Phone camera:* browsers allow camera access only on HTTPS (or localhost). Backend serves HTTP `8000` and HTTPS `8443` (self-signed cert from `scripts/gen_cert.py`, pure Python, cross-platform, includes the LAN IP). Phone opens `https://<lan_ip>:8443/phone?cam=<id>` and accepts the certificate warning once. `backend/static/phone.html` (plain HTML+JS): 640x480 at ~24 fps, `canvas.toBlob('image/jpeg', 0.6)`, binary WebSocket to `/ws/phone/{id}`, skip a frame if `ws.bufferedAmount` > 100 KB, Screen Wake Lock on, front/back camera toggle, status text, auto-reconnect.
+*Phone camera:* browsers allow camera access only on HTTPS (or localhost). Backend serves HTTP `8000` and HTTPS `8443` (self-signed cert from `scripts/gen_cert.py`, pure Python, cross-platform, includes the LAN IP). Phone opens `https://<lan_ip>:8443/phone?cam=<id>` and accepts the certificate warning once. `backend/static/phone.html` is plain HTML+JS (no framework), mobile-first, dark, and **looks like a camera app**:
+- Full-screen live preview. Top bar: camera name, red **LIVE** badge with timer, connection dot. Bottom control row like a camera app.
+- Big round **start/stop** button (red while live) = camera **ON/OFF**. OFF stops and releases the camera track (phone camera light goes off), sends text `off`, and the preview shows "Camera off". The dashboard tile shows `offline` with note `paused by phone`. ON restarts the stream.
+- Buttons: switch front/back, torch (only if supported), snapshot (saves a JPEG to the phone), grid lines, mirror preview (preview only), hide UI / fullscreen, settings.
+- Settings sheet: resolution (320x240 / **640x480 default** / 1280x720), FPS (15 / **24** / 30), JPEG quality (30-90%, default 60), zoom slider (if supported), keep screen on (default on).
+- Stats line: FPS sent, ping ms (via `ping:`/`pong:`), connection status.
+- Remember settings in `localStorage` (inside try/catch). Defaults must stay low-lag.
+- Always: `canvas.toBlob('image/jpeg', q)`, binary WebSocket to `/ws/phone/{id}`, skip a frame if `ws.bufferedAmount` > 100 KB, Screen Wake Lock, auto-reconnect with backoff, `facingMode` front/back.
 
-*Done when:* laptop webcam and phone camera are live on the dashboard **at the same time**, each ≥20 FPS, visible delay under ~300 ms on the same Wi-Fi; cameras can be added, edited, deleted at runtime and survive a restart; unplugging a source shows `offline` and it recovers on its own.
+*Done when:* laptop webcam and phone camera are live on the dashboard **at the same time**, each ≥20 FPS, visible delay under ~300 ms on the same Wi-Fi; cameras can be added, edited, deleted at runtime and survive a restart; unplugging a source shows `offline` and it recovers on its own; image settings apply live and persist; layout 4 shows all cameras on one screen without scrolling.
 
 **M01 detection** — YOLOv8n default. Map COCO ids to `ObjectClass` using `constants.py`. Writes `ctx.detections`. Config: `model, conf, device, frame_skip`.
 
@@ -359,8 +389,10 @@ Integration test: `python -m core.pipeline --only detection,tracking,intrusion` 
 **M07 alerts** — Broadcasts each event over `/ws/alerts`.
 
 **M08 dashboard** — Dark command-center theme. Sidebar: Live, Cameras, Events*, Modules*, Settings* (*placeholder pages until built). Top bar: clock, cameras online x/y, system status. Right panel: live alerts feed (empty placeholder until M07).
-- *Live page:* camera grid with layout buttons 1 / 2 / 4 / auto. Tile = `<img src="/api/stream/{id}">` + name, status dot, FPS. Click = fullscreen. Offline tile shows a placeholder and retries.
+- *Live page:* layout buttons **1 / 2 / 4 / 9 / auto**; the chosen layout is remembered (`localStorage`). The grid must **fill the visible area with no page scroll**: height `calc(100vh - topbar)`, CSS grid `repeat(cols,1fr)` x `repeat(rows,1fr)`, video `object-fit: contain`. Meaning: `1` = 1x1, `2` = 2x1 side by side, `4` = 2x2, `9` = 3x3, `auto` = best fit for **all** cameras (cols = ceil(sqrt(n))). If cameras > cells, show prev/next buttons and "page x/y". Unused cells show a faint "No camera" slot. Example: 3 cameras on layout 4 → all 3 visible together in a 2x2 grid.
+- Tile = `<img src="/api/stream/{id}">` + name, status dot, FPS, and the `note` when offline. Click = fullscreen, Esc exits. Offline tile shows a placeholder and retries.
 - *Cameras page:* cards or table with status, enable toggle, edit, delete (confirm). **Add camera** modal with a type picker: Laptop webcam (dropdown from `/api/webcams`), Phone camera (after saving, shows a QR code + link for `/phone?cam=<id>`), IP/RTSP URL, Video file.
+- *Edit camera modal:* name, source, enabled, plus **Image settings** (section 8 table): sliders for brightness, contrast, saturation, zoom; toggles for flip horizontal, flip vertical, grayscale, invert colours; rotate buttons (0/90/180/270); **Reset** button. Shows a **live preview** beside the controls. Changes apply instantly (`PATCH` with partial `settings`, debounced ~150 ms) and persist. Cancel restores the values from when the modal opened.
 - Polls `/api/cameras` every 2 s. Vite dev proxy forwards `/api` and `/ws` to the backend. Later pages: Event history, Modules toggles, Zone editor, Evidence viewer.
 
 **M09 tamper** — Frame-diff, Laplacian blur score, static-frame check. Writes `extras["tamper"]`; appends `TAMPER` event. Runs first (order 10).
@@ -450,6 +482,7 @@ TEST:   python -m pytest tests/test_<name>.py
 INPUTS: <ctx fields read>      OUTPUTS: <ctx fields written / event types>
 ASSUMPTIONS: <one line each, or "none">
 KNOWN ISSUES: <or "none">
+DOCS UPDATED: <AGENTS.md section 17 rows + PROGRESS.md rows added or changed>
 PROGRESS ROW: | YYYY-MM-DD | <agent> | <name> | <what changed> | <what's next> |
 ```
 
@@ -478,3 +511,22 @@ For tasks like "Integrate module X". Steps:
 - Do not refactor, rename, or "improve" anything outside the task.
 - Do not repeat this file's contents back to the user.
 - Prefer the simplest working solution. Short, readable code over clever code.
+
+---
+
+## 17. Requirements log (user instructions)
+
+AI: when the user gives a new instruction, add a row here **automatically** (section 0, step 7). Never delete rows; mark old ones `superseded`.
+Status: `Open` · `Done` · `superseded`.
+
+| ID | Date | Instruction (short) | Status | Where |
+|---|---|---|---|---|
+| R01 | 2026-09-30 | Modular build: core first, then one feature at a time, each testable and toggleable | Done | Sections 2, 9 |
+| R02 | 2026-09-30 | Modules may be built on other platforms/folders; user uploads AGENTS.md + PROGRESS.md and names a module | Done | Sections 0, 14, 15 |
+| R03 | 2026-10-01 | Laptop webcam + phone cameras live on the dashboard at the same time, no lag; dashboard can add/delete/manage cameras | Done (tested: laptop + 2 phones) | M00, M08 |
+| R04 | 2026-10-01 | Live page: layout 4 must show all cameras on one screen (was stuck on 2 columns) | Open | M08 Live page |
+| R05 | 2026-10-01 | Camera edit options: brightness, contrast etc. plus invert/flip | Open | Section 8 `settings`, M08 Edit modal |
+| R06 | 2026-10-01 | Phone page must feel like a camera app: camera ON/OFF button and more features | Open | M00 phone page |
+| R07 | 2026-10-01 | AI must update AGENTS.md (new instructions) and PROGRESS.md automatically on any platform, without being told | Done | Section 0, step 7 |
+| R08 | 2026-10-01 | Keep code short, simple and easy to read | Done | Section 11 |
+| R09 | 2026-10-01 | No re-uploading AGENTS.md/PROGRESS.md each time: they live in the project root, the AI reads PROGRESS.md itself at session start and updates both files itself | Done | Section 0 |
