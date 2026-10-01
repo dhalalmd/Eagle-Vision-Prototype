@@ -44,16 +44,39 @@ async def phone_websocket(websocket: WebSocket, camera_id: str):
                 enabled=True,
                 cam_id=camera_id
             )
+        camera_manager.clear_note(camera_id)
 
     try:
         while True:
-            data = await websocket.receive_bytes()
-            if camera_manager:
-                reader = camera_manager.get_reader(camera_id)
-                if reader:
-                    reader.push_jpeg(data)
+            msg = await websocket.receive()
+            if "bytes" in msg and msg["bytes"]:
+                # Binary JPEG frame from phone
+                if camera_manager:
+                    reader = camera_manager.get_reader(camera_id)
+                    if reader:
+                        reader.push_jpeg(msg["bytes"])
+            elif "text" in msg and msg["text"]:
+                text = msg["text"]
+                if text == "off":
+                    # Phone camera paused — stop pushing frames, set note
+                    logger.info(f"Phone camera {camera_id} paused by phone")
+                    if camera_manager:
+                        camera_manager.set_note(camera_id, "paused by phone")
+                elif text == "on":
+                    # Phone camera resumed
+                    logger.info(f"Phone camera {camera_id} resumed by phone")
+                    if camera_manager:
+                        camera_manager.clear_note(camera_id)
+                elif text.startswith("ping:"):
+                    # Respond with pong for latency measurement
+                    try:
+                        await websocket.send_text(f"pong:{text[5:]}")
+                    except Exception:
+                        pass
     except WebSocketDisconnect:
         logger.info(f"Phone WebSocket disconnected for camera {camera_id}")
+        if camera_manager:
+            camera_manager.set_note(camera_id, "phone disconnected")
     except Exception as e:
         logger.error(f"Error in phone websocket for camera {camera_id}: {e}")
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, Edit2, QrCode, Power, Camera, Smartphone, Link as LinkIcon, FileVideo } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import EditCameraModal from '../components/EditCameraModal';
 
 export default function CamerasPage({ cameras, onAddClick, onToggle, onDelete, onUpdate, systemInfo }) {
   const [editingCam, setEditingCam] = useState(null);
@@ -86,6 +87,12 @@ export default function CamerasPage({ cameras, onAddClick, onToggle, onDelete, o
                     <span>FPS:</span>
                     <span className="font-mono text-gray-300">{cam.fps}</span>
                   </div>
+                  {cam.note && (
+                    <div className="flex justify-between">
+                      <span>Note:</span>
+                      <span className="font-mono text-amber-400 italic">{cam.note}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -116,13 +123,9 @@ export default function CamerasPage({ cameras, onAddClick, onToggle, onDelete, o
 
                 <div className="flex items-center space-x-1">
                   <button
-                    onClick={() => {
-                      const newName = prompt('Edit camera name:', cam.name);
-                      if (newName && newName !== cam.name) {
-                        onUpdate(cam.id, { name: newName });
-                      }
-                    }}
+                    onClick={() => setEditingCam(cam)}
                     className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800"
+                    title="Edit Camera & Image Settings"
                   >
                     <Edit2 size={16} />
                   </button>
@@ -143,6 +146,15 @@ export default function CamerasPage({ cameras, onAddClick, onToggle, onDelete, o
           );
         })}
       </div>
+
+      {/* Edit Camera Modal */}
+      {editingCam && (
+        <EditCameraModal
+          camera={editingCam}
+          onClose={() => setEditingCam(null)}
+          onUpdate={onUpdate}
+        />
+      )}
 
       {/* QR Code Modal */}
       {qrModalCam && (

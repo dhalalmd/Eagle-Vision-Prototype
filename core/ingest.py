@@ -5,12 +5,15 @@ import cv2
 import numpy as np
 from typing import Optional, Tuple
 from shared.logger import logger
+from core.image_adjust import apply_settings, DEFAULT_SETTINGS
 
 class CameraReader:
-    def __init__(self, camera_id: str, cam_type: str, source: str):
+    def __init__(self, camera_id: str, cam_type: str, source: str,
+                 settings: Optional[dict] = None):
         self.camera_id = camera_id
         self.cam_type = cam_type
         self.source = source
+        self.settings = settings or dict(DEFAULT_SETTINGS)
         self.running = False
         self.thread: Optional[threading.Thread] = None
 
@@ -62,11 +65,11 @@ class CameraReader:
             nparr = np.frombuffer(jpeg_bytes, np.uint8)
             frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
             if frame is not None:
-                self._update_frame(frame, raw_jpeg=jpeg_bytes)
+                self._update_frame(frame)
         except Exception as e:
             logger.error(f"Error decoding phone JPEG for camera {self.camera_id}: {e}")
 
-    def _update_frame(self, frame: np.ndarray, raw_jpeg: Optional[bytes] = None):
+    def _update_frame(self, frame: np.ndarray):
         # Resize to max 640px wide for low latency
         h, w = frame.shape[:2]
         if w > 640:
@@ -74,10 +77,12 @@ class CameraReader:
             new_h = int(h * (640 / w))
             frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
 
-        # Encode JPEG if not provided
-        if raw_jpeg is None:
-            _, jpeg_buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
-            raw_jpeg = jpeg_buf.tobytes()
+        # Apply image settings before FrameContext is built
+        frame = apply_settings(frame, self.settings)
+
+        # Encode JPEG once, share across viewers
+        _, jpeg_buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+        raw_jpeg = jpeg_buf.tobytes()
 
         now = time.time()
         with self._lock:

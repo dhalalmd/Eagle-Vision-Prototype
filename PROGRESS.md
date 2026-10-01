@@ -34,7 +34,7 @@ M00 core: laptop webcam + phone camera live on dashboard at the same time, with 
 | M05 | evidence | P1 | TODO | | | |
 | M06 | database | P1 | TODO | | | |
 | M07 | alerts | P1 | TODO | | | |
-| M08 | dashboard | P1 | WIP | Antigravity | feat/m00 | Camera management built first with M00; other pages later |
+| M08 | dashboard | P1 | DONE | Antigravity | feat/m08 | Live layout (1/2/4/9/auto), Camera image settings modal, Phone camera app UI |
 | M09 | tamper | P2 | TODO | | | |
 | M10 | night_enhance | P2 | TODO | | | |
 | M11 | loitering | P2 | TODO | | | |
@@ -69,11 +69,13 @@ M00 core: laptop webcam + phone camera live on dashboard at the same time, with 
 | 2026-10-01 | Cameras are managed at runtime and stored in `data/cameras.json` (config.yaml is seed only); camera types: webcam, phone, url, file |
 | 2026-10-01 | Phone camera = phone browser page pushing JPEG frames over WebSocket (HTTPS required); fallback: "IP Webcam" app as `url` camera |
 | 2026-10-01 | Modules may be built separately on different platforms/folders: upload AGENTS.md + PROGRESS.md, name one module, AI builds it standalone with mocks, then it is merged into main |
+| 2026-10-01 | Tasks B1, F1, F2 completed: Live page layout (1/2/4/9/auto + grid + paging + persistence), Camera image settings (clamping, reset endpoint, backend worker apply, frontend sliders/toggles/preview), Phone camera app UI (OFF/ON, torch/snapshot/grid/mirror/settings, websocket off/ping/pong, camera note) |
 
 ## Change log (newest first)
 
 | Date | Agent/Person | Module | What changed | Next |
 |---|---|---|---|---|
+| 2026-10-01 | Antigravity | M00 / M08 | Fixed Live page layout (B1: 1/2/4/9/auto grid, pagination, localStorage), camera settings (F1: LUT brightness/contrast, clamp, reset API, Edit modal preview), phone camera app (F2: camera ON/OFF, torch, snapshot, grid, mirror, settings sheet, WebSocket off/ping/pong) | Build M01 Detection |
 | 2026-10-01 | Antigravity | M00 / M08 | Built M00 Core (ingest, camera manager, pipeline, streamer, registry) + M08 Camera Management Dashboard (Vite + React + Tailwind + QR code) | Build M01 Detection |
 | 2026-10-01 | Claude | docs | `AGENTS.md`: added camera contract (camera record, CRUD endpoints, `/api/webcams`, `/api/system/info`, `/ws/phone`, `/phone`), `camera_manager.py`, low-latency rules, phone-camera design (HTTPS + WebSocket), dashboard design. Created `prompts/M00_core_prompt.md` | Run the M00 prompt in Antigravity |
 | 2026-10-01 | Claude | docs | `AGENTS.md`: added sections 0 (START HERE task protocol), 14 (standalone mode, test fixtures, Delivery report), 15 (integrating separately built modules), 16 (free-tier output rules). `PROGRESS.md`: added usage guide + merge tracker. Both files saved in `sih-docs/` | Create skeleton / build M00 core |

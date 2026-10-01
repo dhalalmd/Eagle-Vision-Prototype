@@ -53,7 +53,8 @@ def update_camera(cam_id: str, payload: CameraUpdate):
         cam_id=cam_id,
         name=payload.name,
         source=payload.source,
-        enabled=payload.enabled
+        enabled=payload.enabled,
+        settings=payload.settings
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Camera not found")
@@ -67,6 +68,15 @@ def delete_camera(cam_id: str):
     if not success:
         raise HTTPException(status_code=404, detail="Camera not found")
     return {"status": "deleted", "id": cam_id}
+
+@router.post("/cameras/{cam_id}/reset-settings")
+def reset_camera_settings(cam_id: str):
+    if not camera_manager:
+        raise HTTPException(status_code=500, detail="Camera manager not initialized")
+    result = camera_manager.reset_settings(cam_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    return result
 
 @router.get("/webcams")
 def get_webcams():

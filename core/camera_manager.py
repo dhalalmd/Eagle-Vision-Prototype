@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Any
 from shared.logger import logger
 from shared.config import load_config
 from core.ingest import CameraReader
+from core.image_adjust import DEFAULT_SETTINGS, merge_settings, clamp_settings
 
 CAMERAS_JSON_PATH = Path("data/cameras.json")
 
@@ -18,6 +19,7 @@ class CameraManager:
         self.lock = threading.Lock()
         self.cameras: Dict[str, dict] = {}       # id -> camera record dict
         self.readers: Dict[str, CameraReader] = {} # id -> CameraReader instance
+        self.notes: Dict[str, str] = {}            # id -> transient note text
 
         self._ensure_storage()
 
@@ -34,7 +36,8 @@ class CameraManager:
                     "name": c.get("name", f"Camera {cam_id}"),
                     "type": c.get("type", "webcam"),
                     "source": str(c.get("source", "0")),
-                    "enabled": bool(c.get("enabled", True))
+                    "enabled": bool(c.get("enabled", True)),
+                    "settings": dict(DEFAULT_SETTINGS),
                 }
             self._save_cameras()
         else:
@@ -42,6 +45,9 @@ class CameraManager:
                 with open(CAMERAS_JSON_PATH, "r", encoding="utf-8") as f:
                     cams = json.load(f)
                     for c in cams:
+                        # Backfill defaults for old cameras without settings
+                        if "settings" not in c:
+                            c["settings"] = dict(DEFAULT_SETTINGS)
                         self.cameras[c["id"]] = c
             except Exception as e:
                 logger.error(f"Failed to read {CAMERAS_JSON_PATH}: {e}")
@@ -60,7 +66,8 @@ class CameraManager:
         cam_id = cam["id"]
         if cam_id in self.readers:
             self.readers[cam_id].stop()
-        reader = CameraReader(cam_id, cam["type"], cam["source"])
+        settings = cam.get("settings", DEFAULT_SETTINGS)
+        reader = CameraReader(cam_id, cam["type"], cam["source"], settings=settings)
         self.readers[cam_id] = reader
         reader.start()
 
@@ -84,6 +91,7 @@ class CameraManager:
                     record["status"] = "offline"
                     record["fps"] = 0.0
                     record["last_frame_age_ms"] = 99999.0
+                record["note"] = self.notes.get(cam_id, "")
                 result.append(record)
             return result
 
@@ -108,7 +116,8 @@ class CameraManager:
                 "name": name,
                 "type": cam_type,
                 "source": str(source),
-                "enabled": enabled
+                "enabled": enabled,
+                "settings": dict(DEFAULT_SETTINGS),
             }
             self.cameras[cam_id] = record
             self._save_cameras()
@@ -118,7 +127,9 @@ class CameraManager:
 
         return self.get_camera(cam_id)
 
-    def update_camera(self, cam_id: str, name: Optional[str] = None, source: Optional[str] = None, enabled: Optional[bool] = None) -> Optional[dict]:
+    def update_camera(self, cam_id: str, name: Optional[str] = None,
+                      source: Optional[str] = None, enabled: Optional[bool] = None,
+                      settings: Optional[dict] = None) -> Optional[dict]:
         with self.lock:
             if cam_id not in self.cameras:
                 return None
@@ -129,15 +140,41 @@ class CameraManager:
                 cam["source"] = str(source)
             if enabled is not None:
                 cam["enabled"] = enabled
+            if settings is not None:
+                existing = cam.get("settings", dict(DEFAULT_SETTINGS))
+                cam["settings"] = merge_settings(existing, settings)
+                # Live-update the reader's settings reference
+                reader = self.readers.get(cam_id)
+                if reader:
+                    reader.settings = cam["settings"]
 
             self._save_cameras()
 
             if cam.get("enabled", True):
-                self._start_reader(cam)
+                # Only restart if source or enabled changed, not just settings
+                if source is not None or enabled is not None:
+                    self._start_reader(cam)
             else:
                 self._stop_reader(cam_id)
 
         return self.get_camera(cam_id)
+
+    def reset_settings(self, cam_id: str) -> Optional[dict]:
+        with self.lock:
+            if cam_id not in self.cameras:
+                return None
+            self.cameras[cam_id]["settings"] = dict(DEFAULT_SETTINGS)
+            reader = self.readers.get(cam_id)
+            if reader:
+                reader.settings = dict(DEFAULT_SETTINGS)
+            self._save_cameras()
+        return self.get_camera(cam_id)
+
+    def set_note(self, cam_id: str, note: str):
+        self.notes[cam_id] = note
+
+    def clear_note(self, cam_id: str):
+        self.notes.pop(cam_id, None)
 
     def delete_camera(self, cam_id: str) -> bool:
         with self.lock:
@@ -145,6 +182,7 @@ class CameraManager:
                 return False
             self._stop_reader(cam_id)
             del self.cameras[cam_id]
+            self.notes.pop(cam_id, None)
             self._save_cameras()
             return True
 

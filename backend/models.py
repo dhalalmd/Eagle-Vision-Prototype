@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 class CameraCreate(BaseModel):
     name: str
@@ -11,6 +11,7 @@ class CameraUpdate(BaseModel):
     name: Optional[str] = None
     source: Optional[str] = None
     enabled: Optional[bool] = None
+    settings: Optional[Dict[str, Any]] = None
 
 class SystemInfo(BaseModel):
     lan_ip: str

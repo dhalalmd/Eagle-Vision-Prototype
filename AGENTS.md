@@ -524,9 +524,9 @@ Status: `Open` · `Done` · `superseded`.
 | R01 | 2026-09-30 | Modular build: core first, then one feature at a time, each testable and toggleable | Done | Sections 2, 9 |
 | R02 | 2026-09-30 | Modules may be built on other platforms/folders; user uploads AGENTS.md + PROGRESS.md and names a module | Done | Sections 0, 14, 15 |
 | R03 | 2026-10-01 | Laptop webcam + phone cameras live on the dashboard at the same time, no lag; dashboard can add/delete/manage cameras | Done (tested: laptop + 2 phones) | M00, M08 |
-| R04 | 2026-10-01 | Live page: layout 4 must show all cameras on one screen (was stuck on 2 columns) | Open | M08 Live page |
-| R05 | 2026-10-01 | Camera edit options: brightness, contrast etc. plus invert/flip | Open | Section 8 `settings`, M08 Edit modal |
-| R06 | 2026-10-01 | Phone page must feel like a camera app: camera ON/OFF button and more features | Open | M00 phone page |
+| R04 | 2026-10-01 | Live page: layout 4 must show all cameras on one screen (was stuck on 2 columns) | Done | M08 Live page |
+| R05 | 2026-10-01 | Camera edit options: brightness, contrast etc. plus invert/flip | Done | Section 8 `settings`, M08 Edit modal |
+| R06 | 2026-10-01 | Phone page must feel like a camera app: camera ON/OFF button and more features | Done | M00 phone page |
 | R07 | 2026-10-01 | AI must update AGENTS.md (new instructions) and PROGRESS.md automatically on any platform, without being told | Done | Section 0, step 7 |
 | R08 | 2026-10-01 | Keep code short, simple and easy to read | Done | Section 11 |
 | R09 | 2026-10-01 | No re-uploading AGENTS.md/PROGRESS.md each time: they live in the project root, the AI reads PROGRESS.md itself at session start and updates both files itself | Done | Section 0 |
