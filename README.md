@@ -17,10 +17,10 @@ Prototype for Smart India Hackathon problem statement **SIH26187**.
 
 ## Run it
 ​```bash
-git clone https://github.com/YOU/REPO.git
+git clone https://github.com/dhalalmd/Eagle-Vision-Prototype.git
 cd REPO
 # install and run steps here
 ​```
 
 ## Team
-- Your name
+- StrawHats
