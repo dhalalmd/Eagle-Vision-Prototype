@@ -23,6 +23,20 @@ def is_point_in_polygon(x: float, y: float, polygon: List[List[float]]) -> bool:
         p1x, p1y = p2x, p2y
     return inside
 
+def is_point_near_line(x: float, y: float, line_pts: List[List[float]], threshold: float = 0.03) -> bool:
+    if len(line_pts) < 2:
+        return False
+    (x1, y1), (x2, y2) = line_pts[0], line_pts[1]
+    dx = x2 - x1
+    dy = y2 - y1
+    if dx == 0 and dy == 0:
+        return False
+    t = max(0.0, min(1.0, ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy)))
+    proj_x = x1 + t * dx
+    proj_y = y1 + t * dy
+    dist = ((x - proj_x) ** 2 + (y - proj_y) ** 2) ** 0.5
+    return dist <= threshold
+
 class Module(BaseModule):
     name = "intrusion"
     stage = "ana"
@@ -66,10 +80,15 @@ class Module(BaseModule):
                     continue
 
                 poly = zone.get("points", [])
-                if len(poly) < 3:
-                    continue
+                ztype = zone.get("type", "polygon")
 
-                if is_point_in_polygon(nx, ny, poly):
+                is_triggered = False
+                if ztype == "line" or len(poly) == 2:
+                    is_triggered = is_point_near_line(nx, ny, poly)
+                elif len(poly) >= 3:
+                    is_triggered = is_point_in_polygon(nx, ny, poly)
+
+                if is_triggered:
                     key = (ctx.camera_id, zone["id"], trk.track_id)
                     last_time = self.last_fired.get(key, 0.0)
                     if (ctx.timestamp - last_time) >= self.cooldown_s:

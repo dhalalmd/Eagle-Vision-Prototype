@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Maximize2, X, RefreshCw, AlertCircle, ChevronLeft, ChevronRight, PenTool, Trash2, Check, ShieldAlert } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Maximize2, RefreshCw, AlertCircle, ChevronLeft, ChevronRight, PenTool, Edit3 } from 'lucide-react';
+import ZoneEditorModal from '../components/ZoneEditorModal';
 
 const LAYOUTS = ['1', '2', '4', '9', 'auto'];
 const LAYOUT_GRID = { '1': [1,1], '2': [2,1], '4': [2,2], '9': [3,3] };
@@ -18,13 +19,10 @@ export default function LiveViewPage({ cameras, alertCameras = {} }) {
   const [fullscreenCam, setFullscreenCam] = useState(null);
   const [page, setPage] = useState(0);
 
-  // Zone drawing state
-  const [drawingCam, setDrawingCam] = useState(null);
-  const [drawnPoints, setDrawnPoints] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [zoneName, setZoneName] = useState('');
-  const [zoneClasses, setZoneClasses] = useState(['person', 'vehicle']);
-  const [cameraZones, setCameraZones] = useState([]);
+  // Zone editor state
+  const [editorCam, setEditorCam] = useState(null);
+  const [editingZone, setEditingZone] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     try { localStorage.setItem('live_layout', layout); } catch {}
@@ -49,68 +47,31 @@ export default function LiveViewPage({ cameras, alertCameras = {} }) {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  const startDrawZone = (cam) => {
-    setDrawingCam(cam);
-    setDrawnPoints([]);
-    fetchZones(cam.id);
+  const openZoneEditor = (cam, zoneToEdit = null) => {
+    setEditorCam(cam);
+    setEditingZone(zoneToEdit);
   };
 
-  const fetchZones = async (camId) => {
+  const handleSaveZone = async (payload) => {
     try {
-      const res = await fetch(`/api/zones?camera_id=${camId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCameraZones(data);
-      }
-    } catch (e) {}
-  };
+      const isEditing = Boolean(payload.id);
+      const url = isEditing ? `/api/zones/${payload.id}` : '/api/zones';
+      const method = isEditing ? 'PATCH' : 'POST';
 
-  const handleCanvasClick = (e, rect) => {
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    setDrawnPoints((prev) => [...prev, [round(x), round(y)]]);
-  };
-
-  const round = (val) => Math.round(val * 1000) / 1000;
-
-  const handleFinishZone = () => {
-    if (drawnPoints.length < 3) return;
-    setZoneName(`Zone ${cameraZones.length + 1}`);
-    setIsModalOpen(true);
-  };
-
-  const handleSaveZone = async () => {
-    if (!drawingCam || drawnPoints.length < 3) return;
-    try {
-      const payload = {
-        camera_id: drawingCam.id,
-        name: zoneName || 'New Zone',
-        points: drawnPoints,
-        classes: zoneClasses,
-        enabled: true,
-      };
-      const res = await fetch('/api/zones', {
-        method: 'POST',
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+
       if (res.ok) {
-        setIsModalOpen(false);
-        setDrawnPoints([]);
-        fetchZones(drawingCam.id);
+        setEditorCam(null);
+        setEditingZone(null);
+        setRefreshTrigger((prev) => prev + 1);
       }
     } catch (e) {
       console.error('Failed to save zone:', e);
     }
-  };
-
-  const handleDeleteZone = async (zoneId) => {
-    try {
-      const res = await fetch(`/api/zones/${zoneId}`, { method: 'DELETE' });
-      if (res.ok && drawingCam) {
-        fetchZones(drawingCam.id);
-      }
-    } catch (e) {}
   };
 
   return (
@@ -119,7 +80,7 @@ export default function LiveViewPage({ cameras, alertCameras = {} }) {
       <div className="flex items-center justify-between px-5 py-3 shrink-0">
         <div>
           <h2 className="text-base font-bold text-white tracking-tight">Live Surveillance</h2>
-          <p className="text-[11px] text-gray-500">Real-time multi-camera grid with intrusion detection zones</p>
+          <p className="text-[11px] text-gray-500">Real-time multi-camera grid with interactive security zone editor</p>
         </div>
 
         <div className="flex items-center space-x-1.5 bg-gray-900 p-1 rounded-lg border border-gray-800">
@@ -145,7 +106,7 @@ export default function LiveViewPage({ cameras, alertCameras = {} }) {
           <AlertCircle size={36} className="text-amber-500 mb-3" />
           <h3 className="text-sm font-semibold text-white">No Active Cameras</h3>
           <p className="text-[11px] text-gray-500 mt-1 max-w-xs">
-            Go to Cameras to enable or add a source.
+            Go to Cameras page to enable or add a source.
           </p>
         </div>
       ) : (
@@ -167,8 +128,9 @@ export default function LiveViewPage({ cameras, alertCameras = {} }) {
                     key={cam.id}
                     camera={cam}
                     hasAlert={hasRecentAlert}
+                    refreshTrigger={refreshTrigger}
                     onFullscreen={() => setFullscreenCam(cam)}
-                    onDrawZone={() => startDrawZone(cam)}
+                    onEditZone={(zone) => openZoneEditor(cam, zone)}
                   />
                 );
               }
@@ -205,164 +167,17 @@ export default function LiveViewPage({ cameras, alertCameras = {} }) {
         </div>
       )}
 
-      {/* Zone Drawer Canvas Modal */}
-      {drawingCam && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex flex-col p-4 backdrop-blur-md">
-          <div className="flex items-center justify-between mb-2 text-white">
-            <div>
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                <PenTool className="w-5 h-5 text-indigo-400" />
-                Draw Intrusion Zone — {drawingCam.name}
-              </h3>
-              <p className="text-xs text-gray-400">Click 3 or more points on the video tile to form a boundary polygon.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleFinishZone}
-                disabled={drawnPoints.length < 3}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs font-semibold rounded-lg flex items-center gap-1"
-              >
-                <Check className="w-4 h-4" /> Save Zone ({drawnPoints.length} pts)
-              </button>
-              <button
-                onClick={() => setDrawingCam(null)}
-                className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white"
-              >
-                <X size={22} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex-1 flex gap-4 overflow-hidden">
-            {/* Interactive Canvas */}
-            <div
-              className="flex-1 bg-black rounded-xl overflow-hidden relative cursor-crosshair border border-indigo-500/50"
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                handleCanvasClick(e, rect);
-              }}
-            >
-              <img
-                src={`/api/stream/${drawingCam.id}`}
-                alt={drawingCam.name}
-                className="w-full h-full object-contain pointer-events-none"
-              />
-
-              {/* Overlay SVG points and polygon */}
-              <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                {drawnPoints.length > 0 && (
-                  <polygon
-                    points={drawnPoints.map(([x, y]) => `${x * 100}% ${y * 100}%`).join(' ')}
-                    fill="rgba(239, 68, 68, 0.25)"
-                    stroke="#ef4444"
-                    strokeWidth="2.5"
-                  />
-                )}
-                {drawnPoints.map(([x, y], idx) => (
-                  <circle
-                    key={idx}
-                    cx={`${x * 100}%`}
-                    cy={`${y * 100}%`}
-                    r="5"
-                    fill="#38bdf8"
-                    stroke="#ffffff"
-                    strokeWidth="2"
-                  />
-                ))}
-              </svg>
-            </div>
-
-            {/* Existing Zones Sidebar */}
-            <div className="w-64 bg-[#111827] border border-gray-800 rounded-xl p-4 flex flex-col text-xs text-gray-200">
-              <h4 className="font-bold text-white mb-2 pb-2 border-b border-gray-800">
-                Active Camera Zones
-              </h4>
-              <div className="flex-1 overflow-y-auto space-y-2">
-                {cameraZones.length === 0 ? (
-                  <p className="text-gray-500 italic">No zones saved for this camera yet.</p>
-                ) : (
-                  cameraZones.map((z) => (
-                    <div key={z.id} className="p-2.5 bg-gray-900 rounded border border-gray-800 flex items-center justify-between">
-                      <div>
-                        <p className="font-semibold text-white">{z.name}</p>
-                        <p className="text-[10px] text-gray-400 capitalize">
-                          Classes: {Array.isArray(z.classes) ? z.classes.join(', ') : 'person, vehicle'}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteZone(z.id)}
-                        className="text-rose-400 hover:text-rose-300 p-1"
-                        title="Delete Zone"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Zone Config Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <div className="bg-[#121826] border border-gray-800 rounded-xl p-6 w-full max-w-md text-gray-100">
-            <h3 className="text-lg font-bold text-white mb-4">Configure Intrusion Zone</h3>
-
-            <div className="space-y-4 text-xs">
-              <div>
-                <label className="block text-gray-300 font-semibold mb-1">Zone Name:</label>
-                <input
-                  type="text"
-                  value={zoneName}
-                  onChange={(e) => setZoneName(e.target.value)}
-                  className="w-full p-2 bg-gray-900 border border-gray-700 rounded text-white"
-                  placeholder="e.g. Border Line Alpha"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-300 font-semibold mb-2">Target Object Classes:</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['person', 'vehicle', 'animal', 'object'].map((cls) => {
-                    const checked = zoneClasses.includes(cls);
-                    return (
-                      <label key={cls} className="flex items-center gap-2 cursor-pointer text-gray-300">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            if (e.target.checked) setZoneClasses((prev) => [...prev, cls]);
-                            else setZoneClasses((prev) => prev.filter((c) => c !== cls));
-                          }}
-                          className="rounded border-gray-700 bg-gray-900 text-indigo-600"
-                        />
-                        <span className="capitalize">{cls}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-lg font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveZone}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-lg font-semibold"
-              >
-                Save Zone
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Zone Editor Modal */}
+      {editorCam && (
+        <ZoneEditorModal
+          camera={editorCam}
+          zone={editingZone}
+          onClose={() => {
+            setEditorCam(null);
+            setEditingZone(null);
+          }}
+          onSave={handleSaveZone}
+        />
       )}
 
       {/* Fullscreen Modal */}
@@ -395,8 +210,24 @@ export default function LiveViewPage({ cameras, alertCameras = {} }) {
   );
 }
 
-function CameraTile({ camera, hasAlert, onFullscreen, onDrawZone }) {
+function CameraTile({ camera, hasAlert, refreshTrigger, onFullscreen, onEditZone }) {
   const [error, setError] = useState(false);
+  const [zones, setZones] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchZones = async () => {
+      try {
+        const res = await fetch(`/api/zones?camera_id=${camera.id}`);
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          setZones(data);
+        }
+      } catch (e) {}
+    };
+    fetchZones();
+    return () => { isMounted = false; };
+  }, [camera.id, refreshTrigger]);
 
   return (
     <div
@@ -423,9 +254,9 @@ function CameraTile({ camera, hasAlert, onFullscreen, onDrawZone }) {
 
         <div className="flex items-center space-x-2 shrink-0">
           <button
-            onClick={onDrawZone}
+            onClick={() => onEditZone(null)}
             className="text-gray-400 hover:text-sky-400 transition-colors text-[10px] flex items-center gap-1 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700"
-            title="Draw Intrusion Zone"
+            title="Edit or Draw Security Zone"
           >
             <PenTool size={10} />
             <span>Zone</span>
@@ -443,15 +274,56 @@ function CameraTile({ camera, hasAlert, onFullscreen, onDrawZone }) {
         </div>
       </div>
 
-      {/* Video */}
+      {/* Video & Zone Overlay */}
       <div className="flex-1 bg-black flex items-center justify-center relative min-h-0 overflow-hidden">
         {camera.status === 'online' && !error ? (
-          <img
-            src={`/api/stream/${camera.id}`}
-            alt={camera.name}
-            onError={() => setError(true)}
-            className="w-full h-full object-contain"
-          />
+          <div className="w-full h-full relative flex items-center justify-center">
+            <img
+              src={`/api/stream/${camera.id}`}
+              alt={camera.name}
+              onError={() => setError(true)}
+              className="w-full h-full object-contain pointer-events-none"
+            />
+            {/* SVG overlay for active zones */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-auto">
+              {zones.filter((z) => z.enabled !== false).map((z) => {
+                const color = z.color || '#ef4444';
+                const pts = z.points || [];
+                if (pts.length === 0) return null;
+
+                if (z.type === 'line' || pts.length === 2) {
+                  return (
+                    <g key={z.id} className="cursor-pointer group/zone" onClick={() => onEditZone(z)}>
+                      <line
+                        x1={`${pts[0][0] * 100}%`}
+                        y1={`${pts[0][1] * 100}%`}
+                        x2={`${pts[1][0] * 100}%`}
+                        y2={`${pts[1][1] * 100}%`}
+                        stroke={color}
+                        strokeWidth="3"
+                        strokeDasharray="4 2"
+                        className="hover:stroke-sky-300 transition-colors"
+                      />
+                      <title>{`Edit Zone: ${z.name}`}</title>
+                    </g>
+                  );
+                }
+
+                return (
+                  <g key={z.id} className="cursor-pointer group/zone" onClick={() => onEditZone(z)}>
+                    <polygon
+                      points={pts.map(([x, y]) => `${x * 100}% ${y * 100}%`).join(' ')}
+                      fill={`${color}33`}
+                      stroke={color}
+                      strokeWidth="2"
+                      className="hover:fill-sky-400/30 hover:stroke-sky-300 transition-all"
+                    />
+                    <title>{`Click to edit "${z.name}"`}</title>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
         ) : (
           <div className="flex flex-col items-center justify-center p-3 text-center text-gray-500 space-y-1">
             <RefreshCw size={20} className="animate-spin text-gray-600" />

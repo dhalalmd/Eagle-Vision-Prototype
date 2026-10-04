@@ -29,26 +29,41 @@ class Streamer:
                     if not zone.get("enabled", True):
                         continue
                     poly_pts = zone.get("points", [])
-                    if len(poly_pts) < 3:
-                        continue
+                    ztype = zone.get("type", "polygon")
+                    if ztype == "line" or len(poly_pts) == 2:
+                        if len(poly_pts) < 2:
+                            continue
+                        p1 = (int(poly_pts[0][0] * w), int(poly_pts[0][1] * h))
+                        p2 = (int(poly_pts[1][0] * w), int(poly_pts[1][1] * h))
+                        is_breached = zone.get("id") in breached_zone_ids
+                        color = (0, 0, 255) if is_breached else (255, 200, 0)
+                        thickness = 3 if is_breached else 2
+                        cv2.line(frame, p1, p2, color, thickness)
+                        cv2.circle(frame, p1, 5, color, -1)
+                        cv2.circle(frame, p2, 5, color, -1)
+                        lbl = f"{zone.get('name', 'Line')} [BREACH!]" if is_breached else zone.get("name", "Line")
+                        cv2.putText(frame, lbl, (p1[0], max(p1[1] - 8, 20)),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                    else:
+                        if len(poly_pts) < 3:
+                            continue
+                        pts_px = np.array([[int(p[0] * w), int(p[1] * h)] for p in poly_pts], np.int32)
+                        pts_px = pts_px.reshape((-1, 1, 2))
 
-                    pts_px = np.array([[int(p[0] * w), int(p[1] * h)] for p in poly_pts], np.int32)
-                    pts_px = pts_px.reshape((-1, 1, 2))
+                        is_breached = zone.get("id") in breached_zone_ids
+                        color = (0, 0, 255) if is_breached else (255, 200, 0)  # BGR
+                        alpha = 0.4 if is_breached else 0.25
 
-                    is_breached = zone.get("id") in breached_zone_ids
-                    color = (0, 0, 255) if is_breached else (255, 200, 0)  # BGR
-                    alpha = 0.4 if is_breached else 0.25
+                        cv2.fillPoly(overlay, [pts_px], color)
+                        cv2.addWeighted(overlay, alpha, frame, 1.0 - alpha, 0, frame)
 
-                    cv2.fillPoly(overlay, [pts_px], color)
-                    cv2.addWeighted(overlay, alpha, frame, 1.0 - alpha, 0, frame)
+                        thickness = 3 if is_breached else 2
+                        cv2.polylines(frame, [pts_px], True, color, thickness)
 
-                    thickness = 3 if is_breached else 2
-                    cv2.polylines(frame, [pts_px], True, color, thickness)
-
-                    lbl_x, lbl_y = pts_px[0][0]
-                    lbl = f"{zone.get('name', 'Zone')} [BREACH!]" if is_breached else zone.get("name", "Zone")
-                    cv2.putText(frame, lbl, (lbl_x, max(lbl_y - 8, 20)),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                        lbl_x, lbl_y = pts_px[0][0]
+                        lbl = f"{zone.get('name', 'Zone')} [BREACH!]" if is_breached else zone.get("name", "Zone")
+                        cv2.putText(frame, lbl, (lbl_x, max(lbl_y - 8, 20)),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
         except Exception as e:
             logger.error(f"Error drawing zone overlay: {e}")
 

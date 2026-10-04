@@ -24,6 +24,9 @@ class ZoneCreate(BaseModel):
     points: List[List[float]]
     classes: List[str] = Field(default_factory=lambda: ["person", "vehicle"])
     enabled: bool = True
+    type: str = "polygon"
+    color: str = "#ef4444"
+    direction: str = "both"
 
 class ZoneUpdate(BaseModel):
     camera_id: Optional[str] = None
@@ -31,6 +34,9 @@ class ZoneUpdate(BaseModel):
     points: Optional[List[List[float]]] = None
     classes: Optional[List[str]] = None
     enabled: Optional[bool] = None
+    type: Optional[str] = None
+    color: Optional[str] = None
+    direction: Optional[str] = None
 
 class AlertUpdate(BaseModel):
     status: Optional[str] = None

@@ -74,11 +74,13 @@ M00 core: laptop webcam + phone camera live on dashboard at the same time, with 
 | 2026-10-01 | Detection (YOLOv8n) and Tracking (ByteTrack) execute in dedicated per-camera worker threads capped at max_fps (default 8) to maintain full stream FPS |
 | 2026-10-04 | Expand detection to all 80 COCO classes grouped into PERSON, VEHICLE, ANIMAL, OBJECT with label string field; drop M15 Re-ID |
 | 2026-10-04 | Merge M06 database and M07 alerts into ONE module named `alerts` using shared `zone_store.py` (data/zones.json) and `alert_store.py` (data/alerts.db SQLite) |
+| 2026-10-04 | Zone editing on Live page: interactive modal with vertex move/insert/delete, whole-zone move clamped 0-1, rectangle resize, arrow nudge, tripwire flip, geometry validation banner, undo/redo history, and PATCH /api/zones/{id} immediate propagation |
 
 ## Change log (newest first)
 
 | Date | Agent/Person | Module | What changed | Next |
 |---|---|---|---|---|
+| 2026-10-04 | Antigravity | M03 / M08 | Enhanced Zone feature on Live page: added zone editing (open saved zone from tile or list), vertex drag/insert/delete (min 3 pts), whole-zone drag clamped 0-1, rectangle resize & convert to polygon, arrow nudge (1px/10px), tripwire direction flip, geometry validation banner, undo/redo, and PATCH /api/zones/{id} | Build M04 / M05 |
 | 2026-10-04 | Antigravity | M03 / M07 | Built M03 intrusion + merged alerts module (M06+M07 -> alerts) on branch feat/mvp-intrusion-alerts. Added shared/zone_store.py, shared/alert_store.py, Alert Strip, Zone Drawer, Alerts Page, REST & WS endpoints, unit tests | Build M04 / M05 |
 | 2026-10-04 | Antigravity | M01 / M02 / M08 | Updated M01 & M02 to detect all 80 COCO classes grouped into person (green), vehicle (orange), animal (yellow), object (purple). Added label field to Detection/Track. Added runtime group checkboxes on Modules page. Dropped M15 Re-ID per user approval. | Build M03 Intrusion |
 | 2026-10-01 | Antigravity | M01 / M02 | Built M01 Detection (YOLOv8n) + M02 Tracking (ByteTrack) on feat/detection-tracking branch with async 8 FPS analysis loop & streamer overlay (#<id> person / vehicle) | Build M03 Intrusion |

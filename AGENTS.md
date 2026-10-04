@@ -535,3 +535,4 @@ Status: `Open` · `Done` · `superseded`.
 | R13 | 2026-10-04 | Per-camera IDs are expected | Done | M02 |
 | R14 | 2026-10-04 | Detect all 80 COCO classes grouped into person, vehicle, animal, object with runtime group checkboxes | Done | M01, M02, M08 |
 | R15 | 2026-10-04 | Build M03 intrusion & merged alerts module (M06 database + M07 alerts -> alerts) with SQLite alert_store, zone_store, Alert Strip, and Alerts page | Done | M03, M07, shared/ |
+| R16 | 2026-10-04 | Add editing of existing zones on Live page: interactive modal with vertex move/insert/delete (min 3 pts), whole-zone drag clamped 0-1, rectangle 8-handle resize & convert to polygon, arrow key nudge, tripwire direction flip, geometry validation banner, undo/redo history, and PATCH /api/zones/{id} immediate pipeline propagation | Done | M03, M08, shared/zone_store.py |
