@@ -12,8 +12,8 @@ def make_ctx(camera_id="cam1", frame_id=0, frame=None, tracks=None,
         frame=frame, detections=detections or [], tracks=tracks or [])
 
 def fake_track(track_id=1, bbox=(100, 100, 200, 300),
-               cls=ObjectClass.PERSON, conf=0.9):
-    return Track(track_id=track_id, bbox=bbox, cls=cls, conf=conf)
+               cls=ObjectClass.PERSON, conf=0.9, label="person"):
+    return Track(track_id=track_id, bbox=bbox, cls=cls, conf=conf, label=label)
 
-def fake_detection(bbox=(100, 100, 200, 300), cls=ObjectClass.PERSON, conf=0.9):
-    return Detection(bbox=bbox, cls=cls, conf=conf)
+def fake_detection(bbox=(100, 100, 200, 300), cls=ObjectClass.PERSON, conf=0.9, label="person"):
+    return Detection(bbox=bbox, cls=cls, conf=conf, label=label)

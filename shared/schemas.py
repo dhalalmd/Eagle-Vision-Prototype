@@ -7,6 +7,8 @@ import numpy as np
 class ObjectClass(str, Enum):
     PERSON = "person"
     VEHICLE = "vehicle"
+    ANIMAL = "animal"
+    OBJECT = "object"
 
 class EventType(str, Enum):
     INTRUSION = "intrusion"
@@ -28,6 +30,7 @@ class Detection:
     bbox: tuple[int, int, int, int]      # x1, y1, x2, y2 in PIXELS
     cls: ObjectClass
     conf: float                          # 0.0 - 1.0
+    label: str = ""                      # exact COCO name, e.g. "bottle", "laptop", "dog"
 
 @dataclass
 class Track:
@@ -35,6 +38,7 @@ class Track:
     bbox: tuple[int, int, int, int]      # x1, y1, x2, y2 in PIXELS
     cls: ObjectClass
     conf: float
+    label: str = ""                      # exact COCO name, e.g. "bottle", "laptop", "dog"
 
     @property
     def bottom_center(self) -> tuple[int, int]:

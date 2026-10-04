@@ -89,7 +89,7 @@ Stages: `pre` (preprocess), `ana` (analyse), `out` (output). Lower `order` runs 
 | M12 | object_left | P2 | ana | 70 | tracking | MOG2 | |
 | M13 | anpr | P2 | ana | 80 | detection | YOLOv8 plate + PaddleOCR/EasyOCR | |
 | M14 | emergency_trigger | P2 | out | 240 | event_engine | Twilio (**simulated only**) | |
-| M15 | reid (multi-camera) | P3 | ana | 90 | tracking | OSNet/torchreid | |
+| M15 | reid (multi-camera) | P3 | ana | 90 | tracking | OSNet/torchreid | dropped by user |
 | M16 | face (recognition) | P3 | ana | 100 | detection | RetinaFace + InsightFace | |
 | M17 | anomaly (predictive) | P3 | ana | 110 | tracking | TBD | |
 | M18 | responsible_ai (audit log, access control, retention) | P2 | — | — | database | backend | |
@@ -113,6 +113,8 @@ import numpy as np
 class ObjectClass(str, Enum):
     PERSON = "person"
     VEHICLE = "vehicle"
+    ANIMAL = "animal"
+    OBJECT = "object"
 
 class EventType(str, Enum):
     INTRUSION = "intrusion"
@@ -134,6 +136,7 @@ class Detection:
     bbox: tuple[int, int, int, int]      # x1, y1, x2, y2 in PIXELS
     cls: ObjectClass
     conf: float                          # 0.0 - 1.0
+    label: str = ""                      # exact COCO name, e.g. "bottle", "laptop", "dog"
 
 @dataclass
 class Track:
@@ -141,6 +144,7 @@ class Track:
     bbox: tuple[int, int, int, int]      # x1, y1, x2, y2 in PIXELS
     cls: ObjectClass
     conf: float
+    label: str = ""                      # exact COCO name, e.g. "bottle", "laptop", "dog"
 
     @property
     def bottom_center(self) -> tuple[int, int]:
@@ -531,5 +535,7 @@ Status: `Open` · `Done` · `superseded`.
 | R08 | 2026-10-01 | Keep code short, simple and easy to read | Done | Section 11 |
 | R09 | 2026-10-01 | No re-uploading AGENTS.md/PROGRESS.md each time: they live in the project root, the AI reads PROGRESS.md itself at session start and updates both files itself | Done | Section 0 |
 | R10 | 2026-10-01 | Build M01 detection + M02 tracking in one task with YOLOv8n on CPU and stable track IDs | Done | M01, M02 |
-| R11 | 2026-10-01 | Cross-camera tracking via Re-ID (M15), wanted after M03 | Open | M15 |
+| R11 | 2026-10-01 | Cross-camera tracking via Re-ID (M15), wanted after M03 | superseded (dropped by user) | M15 |
 | R12 | 2026-10-01 | Incident log via M04 + M06, wanted next | Open | M04, M06 |
+| R13 | 2026-10-04 | Per-camera IDs are expected | Done | M02 |
+| R14 | 2026-10-04 | Detect all 80 COCO classes grouped into person, vehicle, animal, object with runtime group checkboxes | Done | M01, M02, M08 |

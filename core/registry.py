@@ -91,10 +91,15 @@ class ModuleRegistry:
             enabled = m_cfg.get("enabled", False)
             stat = self.status.get(name, "disabled" if not enabled else "active")
             fails = self.failures.get(name, 0)
+            instance = self.modules.get(name)
+            avg_ms = getattr(instance, "avg_ms", None) if instance else None
+
             info_list.append({
                 "name": name,
                 "enabled": enabled,
                 "status": stat,
-                "failures": fails
+                "failures": fails,
+                "config": m_cfg,
+                "avg_ms": round(avg_ms, 2) if avg_ms is not None else None
             })
         return info_list

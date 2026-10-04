@@ -19,7 +19,7 @@ def test_detection_process_with_missing_model():
 
 def test_detection_setup_and_predict():
     from modules.detection.module import Module
-    mod = Module({"enabled": True, "conf": 0.4, "device": "cpu"})
+    mod = Module({"enabled": True, "conf": 0.35, "device": "cpu"})
     try:
         mod.setup()
     except Exception:
@@ -29,3 +29,16 @@ def test_detection_setup_and_predict():
     mod.process(ctx)
     assert isinstance(ctx.detections, list)
     mod.teardown()
+
+def test_detection_class_filtering():
+    from modules.detection.module import Module
+    mod = Module({"enabled": True, "classes": ["person", "vehicle"]})
+    assert mod._is_class_allowed("person", ObjectClass.PERSON) is True
+    assert mod._is_class_allowed("car", ObjectClass.VEHICLE) is True
+    assert mod._is_class_allowed("dog", ObjectClass.ANIMAL) is False
+    assert mod._is_class_allowed("bottle", ObjectClass.OBJECT) is False
+
+    mod_all = Module({"enabled": True, "classes": "all"})
+    assert mod_all._is_class_allowed("bottle", ObjectClass.OBJECT) is True
+    assert mod_all._is_class_allowed("dog", ObjectClass.ANIMAL) is True
+

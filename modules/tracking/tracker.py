@@ -27,7 +27,9 @@ def match_iou(tracks: List["STrack"], detections: List[Detection], iou_thresh: f
     iou_matrix = np.zeros((len(tracks), len(detections)), dtype=np.float32)
     for i, trk in enumerate(tracks):
         for j, det in enumerate(detections):
-            if trk.cls == det.cls:  # Only match same class
+            # Match if label matches or cls matches
+            is_same_class = (trk.label == det.label) if (trk.label and det.label) else (trk.cls == det.cls)
+            if is_same_class:
                 iou_matrix[i, j] = compute_iou(trk.bbox, det.bbox)
 
     try:
@@ -65,17 +67,20 @@ def match_iou(tracks: List["STrack"], detections: List[Detection], iou_thresh: f
     return matches, unmatched_tracks, unmatched_dets
 
 class STrack:
-    def __init__(self, track_id: int, bbox: Tuple[int, int, int, int], cls: ObjectClass, conf: float, frame_id: int):
+    def __init__(self, track_id: int, bbox: Tuple[int, int, int, int], cls: ObjectClass, conf: float, frame_id: int, label: str = ""):
         self.track_id = track_id
         self.bbox = bbox
         self.cls = cls
         self.conf = conf
         self.frame_id = frame_id
+        self.label = label or cls.value
         self.state = "tracked"  # "tracked", "lost"
 
     def update(self, detection: Detection, frame_id: int):
         self.bbox = detection.bbox
+        self.cls = detection.cls
         self.conf = detection.conf
+        self.label = detection.label or detection.cls.value
         self.frame_id = frame_id
         self.state = "tracked"
 
@@ -135,7 +140,7 @@ class ByteTracker:
         # 5. Create new tracks for remaining unmatched high-conf detections
         new_dets = [unmatched_high_dets[i] for i in unmatch_dets_lost]
         for det in new_dets:
-            new_track = STrack(self.next_id, det.bbox, det.cls, det.conf, self.frame_id)
+            new_track = STrack(self.next_id, det.bbox, det.cls, det.conf, self.frame_id, label=det.label)
             self.next_id += 1
             self.tracked_stracks.append(new_track)
 
@@ -150,6 +155,8 @@ class ByteTracker:
                     track_id=trk.track_id,
                     bbox=trk.bbox,
                     cls=trk.cls,
-                    conf=trk.conf
+                    conf=trk.conf,
+                    label=trk.label
                 ))
         return output_tracks
+

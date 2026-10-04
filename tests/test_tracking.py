@@ -43,3 +43,24 @@ def test_tracking_with_moving_detections():
     assert t1_id in track_ids
 
     mod.teardown()
+
+def test_tracking_multiple_object_groups():
+    mod = Module({"enabled": True, "track_thresh": 0.3})
+    mod.setup()
+
+    det_bottle = fake_detection(bbox=(50, 50, 90, 150), cls=ObjectClass.OBJECT, conf=0.85, label="bottle")
+    det_dog = fake_detection(bbox=(200, 200, 300, 350), cls=ObjectClass.ANIMAL, conf=0.9, label="dog")
+
+    ctx = make_ctx(camera_id="cam1", frame_id=1, detections=[det_bottle, det_dog])
+    mod.process(ctx)
+
+    assert len(ctx.tracks) == 2
+    labels = {t.label for t in ctx.tracks}
+    assert "bottle" in labels
+    assert "dog" in labels
+    groups = {t.cls for t in ctx.tracks}
+    assert ObjectClass.OBJECT in groups
+    assert ObjectClass.ANIMAL in groups
+
+    mod.teardown()
+

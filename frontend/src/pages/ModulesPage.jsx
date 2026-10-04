@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Cpu, CheckCircle2, XCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Cpu, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Zap } from 'lucide-react';
 
 export default function ModulesPage() {
   const [modules, setModules] = useState([]);
@@ -42,8 +42,45 @@ export default function ModulesPage() {
     }
   };
 
+  const handleGroupCheckbox = async (group, isChecked, currentConfig) => {
+    const allGroups = ['person', 'vehicle', 'animal', 'object'];
+    let currentClasses = currentConfig?.classes || 'all';
+
+    let activeGroups = [];
+    if (currentClasses === 'all' || (Array.isArray(currentClasses) && currentClasses.includes('all'))) {
+      activeGroups = [...allGroups];
+    } else if (Array.isArray(currentClasses)) {
+      activeGroups = currentClasses.map((c) => String(c).toLowerCase());
+    } else {
+      activeGroups = [...allGroups];
+    }
+
+    if (isChecked) {
+      if (!activeGroups.includes(group)) {
+        activeGroups.push(group);
+      }
+    } else {
+      activeGroups = activeGroups.filter((g) => g !== group);
+    }
+
+    const updatedClasses = activeGroups.length === 4 ? 'all' : activeGroups;
+
+    try {
+      const res = await fetch('/api/modules/detection/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ classes: updatedClasses }),
+      });
+      if (res.ok) {
+        await fetchModules();
+      }
+    } catch (err) {
+      console.error('Failed to update detection classes:', err);
+    }
+  };
+
   const moduleDescriptions = {
-    detection: 'YOLOv8 Object Detection for person and vehicle (car, motorcycle, bus, truck) classes.',
+    detection: 'YOLOv8 Object Detection for all 80 COCO classes grouped into person, vehicle, animal, and object.',
     tracking: 'ByteTrack Multi-Object Tracker assigning unique stable track IDs to detected objects.',
     intrusion: 'Shapely zone polygon boundary monitor triggering real-time intrusion events.',
     event_engine: 'Event deduplication, severity ranking, and rule filter engine.',
@@ -57,6 +94,13 @@ export default function ModulesPage() {
     anpr: 'Automatic License Plate Recognition via YOLO crop and OCR reader.',
     emergency_trigger: 'Emergency dispatch trigger simulation module.',
   };
+
+  const groupsDef = [
+    { key: 'person', label: 'Person', colorBg: 'bg-emerald-400' },
+    { key: 'vehicle', label: 'Vehicle', colorBg: 'bg-amber-500' },
+    { key: 'animal', label: 'Animal', colorBg: 'bg-yellow-400' },
+    { key: 'object', label: 'Object', colorBg: 'bg-purple-500' },
+  ];
 
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-[#0b0f19] text-gray-100">
@@ -120,6 +164,12 @@ export default function ModulesPage() {
                           <AlertTriangle className="w-3 h-3 mr-1" /> Failed ({mod.failures}/5)
                         </span>
                       )}
+
+                      {mod.avg_ms != null && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                          <Zap className="w-3 h-3 mr-1 text-indigo-400" /> {mod.avg_ms} ms/frame
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -136,7 +186,44 @@ export default function ModulesPage() {
                   </label>
                 </div>
 
-                <p className="mt-3 text-xs text-gray-400 leading-relaxed min-h-[3rem]">{desc}</p>
+                <p className="mt-3 text-xs text-gray-400 leading-relaxed">{desc}</p>
+
+                {/* Class Group Filter Checkboxes for Detection Module */}
+                {mod.name === 'detection' && (
+                  <div className="mt-4 pt-3 border-t border-gray-800/80">
+                    <span className="text-xs font-medium text-gray-300 block mb-2">
+                      Active Object Groups:
+                    </span>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {groupsDef.map((grp) => {
+                        const cfgClasses = mod.config?.classes || 'all';
+                        const isChecked =
+                          cfgClasses === 'all' ||
+                          (Array.isArray(cfgClasses) &&
+                            (cfgClasses.includes('all') ||
+                              cfgClasses.map((c) => String(c).toLowerCase()).includes(grp.key)));
+
+                        return (
+                          <label
+                            key={grp.key}
+                            className="flex items-center gap-1.5 cursor-pointer text-gray-300 hover:text-white"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) =>
+                                handleGroupCheckbox(grp.key, e.target.checked, mod.config)
+                              }
+                              className="rounded border-gray-700 bg-gray-900 text-indigo-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
+                            />
+                            <span className={`w-2 h-2 rounded-full ${grp.colorBg}`} />
+                            <span className="capitalize">{grp.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -145,3 +232,4 @@ export default function ModulesPage() {
     </div>
   );
 }
+

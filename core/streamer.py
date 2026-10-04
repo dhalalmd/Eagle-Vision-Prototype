@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 from typing import Generator, Optional
 from shared.schemas import FrameContext, ObjectClass
+from shared.constants import GROUP_COLORS
 from shared.logger import logger
 
 class Streamer:
@@ -13,22 +14,25 @@ class Streamer:
         """Draws bounding boxes and labels on frame.
         
         Labels:
-        - If tracking is on (tracks exist): "#<id> person" / "#<id> vehicle"
-        - If tracking is off (only detections exist): "person" / "vehicle"
+        - If tracking is on (tracks exist): "#<id> <label>"
+        - If tracking is off (only detections exist): "<label>"
         Colors:
         - Person: Green (0, 255, 0)
         - Vehicle: Orange (0, 165, 255)
+        - Animal: Yellow (0, 255, 255)
+        - Object: Purple (211, 0, 148)
         """
         if ctx.frame is None:
             return None
         frame = ctx.frame.copy()
 
-        # If tracks are available, draw tracks with #<id> <cls>
+        # If tracks are available, draw tracks with #<id> <label>
         if ctx.tracks:
             for trk in ctx.tracks:
                 x1, y1, x2, y2 = trk.bbox
-                color = (0, 255, 0) if trk.cls == ObjectClass.PERSON else (0, 165, 255)
-                label = f"#{trk.track_id} {trk.cls.value}"
+                color = GROUP_COLORS.get(trk.cls, (0, 255, 0))
+                lbl = trk.label if trk.label else trk.cls.value
+                label = f"#{trk.track_id} {lbl}"
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(frame, label, (x1, max(y1 - 5, 15)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
@@ -36,8 +40,9 @@ class Streamer:
             # If tracking is off or no tracks, draw plain detections
             for det in ctx.detections:
                 x1, y1, x2, y2 = det.bbox
-                color = (0, 255, 0) if det.cls == ObjectClass.PERSON else (0, 165, 255)
-                label = f"{det.cls.value}"
+                color = GROUP_COLORS.get(det.cls, (0, 255, 0))
+                lbl = det.label if det.label else det.cls.value
+                label = f"{lbl}"
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(frame, label, (x1, max(y1 - 5, 15)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)

@@ -136,6 +136,29 @@ def toggle_module(name: str):
 
     return {"name": name, "enabled": modules_cfg[name]["enabled"]}
 
+@router.post("/modules/{name}/config")
+def update_module_config(name: str, payload: dict):
+    config_path = Path("config.yaml")
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="config.yaml not found")
+    
+    with open(config_path, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f) or {}
+
+    modules_cfg = cfg.get("modules", {})
+    if name not in modules_cfg:
+        modules_cfg[name] = {}
+    
+    modules_cfg[name].update(payload)
+    cfg["modules"] = modules_cfg
+    with open(config_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(cfg, f)
+
+    if module_registry:
+        module_registry.load_modules()
+
+    return {"name": name, "config": modules_cfg[name]}
+
 @router.get("/zones")
 def get_zones():
     config_path = Path("config.yaml")
