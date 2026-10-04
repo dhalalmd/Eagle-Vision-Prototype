@@ -80,12 +80,31 @@ async def phone_websocket(websocket: WebSocket, camera_id: str):
     except Exception as e:
         logger.error(f"Error in phone websocket for camera {camera_id}: {e}")
 
+import asyncio
+from shared.alert_store import alert_store
+
 @router.websocket("/ws/alerts")
 async def alerts_websocket(websocket: WebSocket):
-    await alert_manager.connect(websocket)
+    await websocket.accept()
+    logger.info("Alerts WebSocket connected")
+    
+    # On connect: send nothing old, record max current alert ID
+    alerts, _ = alert_store.list_alerts(limit=1)
+    last_id = alerts[0]["id"] if alerts else 0
+
     try:
         while True:
-            # Keep connection alive
-            await websocket.receive_text()
+            await asyncio.sleep(0.5)
+            # Fetch new alerts created after last_id
+            new_alerts, _ = alert_store.list_alerts(limit=50)
+            if new_alerts:
+                # Filter alerts with id > last_id sorted ascending
+                unseen = [a for a in new_alerts if a.get("id", 0) > last_id]
+                unseen.sort(key=lambda x: x["id"])
+                for alert in unseen:
+                    await websocket.send_json(alert)
+                    last_id = max(last_id, alert["id"])
     except WebSocketDisconnect:
-        alert_manager.disconnect(websocket)
+        logger.info("Alerts WebSocket disconnected")
+    except Exception as e:
+        logger.error(f"Error in alerts websocket: {e}")

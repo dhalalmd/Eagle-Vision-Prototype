@@ -77,11 +77,10 @@ Stages: `pre` (preprocess), `ana` (analyse), `out` (output). Lower `order` runs 
 | M00 | core (ingest, camera manager, pipeline, live view, camera management UI) | P0 | — | — | — | OpenCV, FFmpeg, FastAPI, React | |
 | M01 | detection | P1 | ana | 30 | — | YOLOv8 | |
 | M02 | tracking | P1 | ana | 40 | detection | ByteTrack | |
-| M03 | intrusion | P1 | ana | 50 | tracking | Shapely | |
+| M03 | intrusion | P1 | ana | 50 | tracking | Shapely, ZoneStore | |
 | M04 | event_engine | P1 | out | 200 | — | Python, Redis (optional) | |
 | M05 | evidence | P1 | out | 210 | event_engine | OpenCV, FFmpeg | |
-| M06 | database | P1 | out | 220 | event_engine | PostgreSQL / SQLite | |
-| M07 | alerts | P1 | out | 230 | event_engine | FastAPI WebSocket | |
+| M07 | alerts (merged db+alerts) | P1 | out | 220 | — | SQLite, AlertStore, WebSocket | |
 | M08 | dashboard (events, alerts, toggles, zones) | P1 | — | — | M00 | React + Tailwind | |
 | M09 | tamper | P2 | pre | 10 | — | frame-diff, blur | |
 | M10 | night_enhance | P2 | pre | 20 | — | CLAHE, gamma | |
@@ -257,12 +256,10 @@ cameras:          # SEED ONLY: copied once into data/cameras.json; after that ca
 modules:
   detection:   {enabled: true,  model: yolov8n.pt, conf: 0.4, device: auto, frame_skip: 0}
   tracking:    {enabled: true}
-  intrusion:   {enabled: true,  cooldown_s: 10,
-                zones: [{id: z1, name: "Border line", points: [[0.1,0.6],[0.9,0.6],[0.9,0.9],[0.1,0.9]]}]}
-  event_engine: {enabled: true, cooldown_s: 10, use_redis: false}
-  evidence:    {enabled: true,  pre_s: 5, post_s: 5}
-  database:    {enabled: true,  url: "sqlite:///data/events.db"}
-  alerts:      {enabled: true}
+  intrusion:   {enabled: true,  cooldown_s: 10}
+  alerts:      {enabled: true,  retention_days: 30}
+  event_engine: {enabled: false, cooldown_s: 10, use_redis: false}
+  evidence:    {enabled: false,  pre_s: 5, post_s: 5}
   tamper:      {enabled: false}
   night_enhance: {enabled: false, brightness_threshold: 60}
   loitering:   {enabled: false, dwell_s: 30}
@@ -297,13 +294,17 @@ modules:
 | WS | `/ws/phone/{camera_id}` | phone pushes binary JPEG frames. Text messages: phone→server `off` (camera paused), `ping:<ms>`; server→phone `pong:<ms>` |
 | GET | `/phone?cam={camera_id}` | phone capture page (static HTML) |
 | GET | `/api/stream/{camera_id}` | MJPEG live stream (annotated) |
-| WS | `/ws/alerts` | pushes `Event.to_dict()` JSON per alert |
-| GET | `/api/events?camera_id=&type=&severity=&limit=50` | event history |
-| GET | `/api/events/{id}` | one event + evidence path |
-| GET | `/api/evidence/{path}` | serve screenshot/clip |
+| WS | `/ws/alerts` | pushes full alert dict JSON per new alert |
+| GET | `/api/alerts?camera_id&type&severity&status&q&date_from&date_to&limit&offset` | list alerts history with filters |
+| GET | `/api/alerts/{id}` | get one alert record by ID |
+| PATCH | `/api/alerts/{id}` | update alert `status` and/or `remarks` |
+| GET | `/api/alerts/stats` | return alert counts by severity, status, and unread |
+| GET | `/api/alerts/export.csv` | export alerts matching filters as CSV file |
+| GET | `/api/evidence/{path}` | serve screenshot/clip evidence file |
 | GET | `/api/modules` | `[{name, enabled, status, failures}]` |
-| POST | `/api/modules/{name}/toggle` | enable/disable at runtime |
-| GET/POST | `/api/zones` | read/save fence polygons (normalised) |
+| POST | `/api/modules/{name}/toggle` | enable/disable module at runtime |
+| GET/POST | `/api/zones` | list/create fence polygon zones (normalised 0-1) |
+| PATCH/DELETE | `/api/zones/{id}` | update or delete a zone record by ID |
 
 Camera record (JSON, exact keys):
 ```json
@@ -382,15 +383,9 @@ Integration test: `python -m core.pipeline --only detection,tracking,intrusion` 
 
 **M02 tracking** — ByteTrack. Consumes `ctx.detections`, writes `ctx.tracks` with stable `track_id` per camera.
 
-**M03 intrusion** — Shapely polygon from normalised zone points; test `track.bottom_center`. On entry append `Event(INTRUSION, HIGH, ...)` with `zone_id`, `track_id`. Fires once per track per zone per `cooldown_s`.
+**M03 intrusion** — Zone polygon boundary monitor test using track `bottom_center`. On entry appends `Event(INTRUSION, HIGH, ...)` with `zone_id`, `track_id`, plain English `message` (e.g. `'Person #3 entered zone "Border line" on Laptop webcam'`), and `meta` `{label, zone_name, camera_name}`. Fires once per track per zone per `cooldown_s` (default 10s). Animals ignored by default unless explicitly in zone's allowed `classes`.
 
-**M04 event_engine** — Dedups same `type+track_id+zone_id` within cooldown, adjusts severity (e.g. vehicle in zone → higher), drops low-confidence noise. Redis optional; falls back to in-memory dict.
-
-**M05 evidence** — Screenshot at event + rolling clip (`pre_s` before, `post_s` after) saved to `data/evidence/<camera_id>/<timestamp>_<type>.jpg|mp4`. Sets `event.evidence_path`.
-
-**M06 database** — SQLAlchemy. Inserts every event. SQLite default, PostgreSQL via `DATABASE_URL`.
-
-**M07 alerts** — Broadcasts each event over `/ws/alerts`.
+**M07 alerts** — Merged database + alerts output module. Listens for `ctx.events`, formats readable title (e.g. `'Intrusion: person #3 in "Border line"'`), stores alert via `shared/alert_store` in SQLite (`data/alerts.db`), and appends a formatted line to `data/logs/alerts-YYYY-MM-DD.log`. Runs retention cleanup at startup and once daily (deletes alerts/logs older than `retention_days`). Works without GPU, without Redis, offline.
 
 **M08 dashboard** — Dark command-center theme. Sidebar: Live, Cameras, Events*, Modules*, Settings* (*placeholder pages until built). Top bar: clock, cameras online x/y, system status. Right panel: live alerts feed (empty placeholder until M07).
 - *Live page:* layout buttons **1 / 2 / 4 / 9 / auto**; the chosen layout is remembered (`localStorage`). The grid must **fill the visible area with no page scroll**: height `calc(100vh - topbar)`, CSS grid `repeat(cols,1fr)` x `repeat(rows,1fr)`, video `object-fit: contain`. Meaning: `1` = 1x1, `2` = 2x1 side by side, `4` = 2x2, `9` = 3x3, `auto` = best fit for **all** cameras (cols = ceil(sqrt(n))). If cameras > cells, show prev/next buttons and "page x/y". Unused cells show a faint "No camera" slot. Example: 3 cameras on layout 4 → all 3 visible together in a 2x2 grid.
@@ -539,3 +534,4 @@ Status: `Open` · `Done` · `superseded`.
 | R12 | 2026-10-01 | Incident log via M04 + M06, wanted next | Open | M04, M06 |
 | R13 | 2026-10-04 | Per-camera IDs are expected | Done | M02 |
 | R14 | 2026-10-04 | Detect all 80 COCO classes grouped into person, vehicle, animal, object with runtime group checkboxes | Done | M01, M02, M08 |
+| R15 | 2026-10-04 | Build M03 intrusion & merged alerts module (M06 database + M07 alerts -> alerts) with SQLite alert_store, zone_store, Alert Strip, and Alerts page | Done | M03, M07, shared/ |

@@ -17,3 +17,21 @@ class SystemInfo(BaseModel):
     lan_ip: str
     http_port: int = 8000
     https_port: int = 8443
+
+class ZoneCreate(BaseModel):
+    camera_id: str = "cam1"
+    name: str
+    points: List[List[float]]
+    classes: List[str] = Field(default_factory=lambda: ["person", "vehicle"])
+    enabled: bool = True
+
+class ZoneUpdate(BaseModel):
+    camera_id: Optional[str] = None
+    name: Optional[str] = None
+    points: Optional[List[List[float]]] = None
+    classes: Optional[List[str]] = None
+    enabled: Optional[bool] = None
+
+class AlertUpdate(BaseModel):
+    status: Optional[str] = None
+    remarks: Optional[str] = None

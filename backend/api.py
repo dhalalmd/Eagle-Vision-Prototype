@@ -159,24 +159,115 @@ def update_module_config(name: str, payload: dict):
 
     return {"name": name, "config": modules_cfg[name]}
 
+import csv
+import io
+import time
+from fastapi.responses import StreamingResponse, Response, FileResponse
+from backend.models import CameraCreate, CameraUpdate, SystemInfo, ZoneCreate, ZoneUpdate, AlertUpdate
+from shared.zone_store import zone_store
+from shared.alert_store import alert_store
+
 @router.get("/zones")
-def get_zones():
-    config_path = Path("config.yaml")
-    if config_path.exists():
-        with open(config_path, "r", encoding="utf-8") as f:
-            cfg = yaml.safe_load(f) or {}
-            intrusion_cfg = cfg.get("modules", {}).get("intrusion", {})
-            return intrusion_cfg.get("zones", [])
-    return []
+def list_zones(camera_id: Optional[str] = None):
+    return zone_store.list_zones(camera_id=camera_id)
 
-@router.get("/events")
-def list_events(camera_id: Optional[str] = None, type: Optional[str] = None, severity: Optional[str] = None, limit: int = 50):
-    return []
+@router.post("/zones")
+def create_zone(payload: ZoneCreate):
+    return zone_store.add_zone(payload.dict())
 
-@router.get("/events/{event_id}")
-def get_event(event_id: str):
-    raise HTTPException(status_code=404, detail="Event not found")
+@router.patch("/zones/{zone_id}")
+def update_zone(zone_id: str, payload: ZoneUpdate):
+    data = payload.dict(exclude_unset=True)
+    updated = zone_store.update_zone(zone_id, data)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    return updated
+
+@router.delete("/zones/{zone_id}")
+def delete_zone(zone_id: str):
+    success = zone_store.delete_zone(zone_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    return {"status": "deleted", "id": zone_id}
+
+@router.get("/alerts")
+def list_alerts(
+    camera_id: Optional[str] = None,
+    type: Optional[str] = None,
+    severity: Optional[str] = None,
+    status: Optional[str] = None,
+    q: Optional[str] = None,
+    date_from: Optional[float] = None,
+    date_to: Optional[float] = None,
+    limit: int = 50,
+    offset: int = 0
+):
+    items, total = alert_store.list_alerts(
+        camera_id=camera_id, type=type, severity=severity, status=status,
+        q=q, date_from=date_from, date_to=date_to, limit=limit, offset=offset
+    )
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+@router.get("/alerts/stats")
+def get_alerts_stats():
+    return alert_store.get_stats()
+
+@router.get("/alerts/export.csv")
+def export_alerts_csv(
+    camera_id: Optional[str] = None,
+    type: Optional[str] = None,
+    severity: Optional[str] = None,
+    status: Optional[str] = None,
+    q: Optional[str] = None,
+    date_from: Optional[float] = None,
+    date_to: Optional[float] = None
+):
+    items, _ = alert_store.list_alerts(
+        camera_id=camera_id, type=type, severity=severity, status=status,
+        q=q, date_from=date_from, date_to=date_to, limit=10000, offset=0
+    )
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "Time", "Camera", "Type", "Severity", "Title", "Message", "Status", "Remarks", "Evidence Path"])
+
+    for a in items:
+        dt_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(a.get("timestamp", 0)))
+        writer.writerow([
+            a.get("id"),
+            dt_str,
+            a.get("camera_id"),
+            a.get("type"),
+            a.get("severity"),
+            a.get("title"),
+            a.get("message"),
+            a.get("status"),
+            a.get("remarks"),
+            a.get("evidence_path") or ""
+        ])
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=alerts.csv"}
+    )
+
+@router.get("/alerts/{alert_id}")
+def get_alert(alert_id: int):
+    alert = alert_store.get_alert(alert_id)
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return alert
+
+@router.patch("/alerts/{alert_id}")
+def update_alert(alert_id: int, payload: AlertUpdate):
+    updated = alert_store.update_alert(alert_id, status=payload.status, remarks=payload.remarks)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return updated
 
 @router.get("/evidence/{path:path}")
 def get_evidence(path: str):
-    raise HTTPException(status_code=404, detail="Evidence not found")
+    full_path = Path("data/evidence") / path
+    if not full_path.exists() or not full_path.is_file():
+        raise HTTPException(status_code=404, detail="Evidence file not found")
+    return FileResponse(str(full_path))

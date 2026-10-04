@@ -6,12 +6,10 @@ cameras:
   type: webcam
 modules:
   alerts:
-    enabled: false
+    enabled: true
+    retention_days: 30
   anpr:
     enabled: false
-  database:
-    enabled: false
-    url: sqlite:///data/events.db
   detection:
     classes: all
     conf: 0.35
@@ -33,19 +31,7 @@ modules:
     pre_s: 5
   intrusion:
     cooldown_s: 10
-    enabled: false
-    zones:
-    - id: z1
-      name: Border line
-      points:
-      - - 0.1
-        - 0.6
-      - - 0.9
-        - 0.6
-      - - 0.9
-        - 0.9
-      - - 0.1
-        - 0.9
+    enabled: true
   loitering:
     dwell_s: 30
     enabled: false
@@ -59,3 +45,4 @@ modules:
     enabled: false
   tracking:
     enabled: true
+

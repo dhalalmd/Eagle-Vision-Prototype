@@ -6,6 +6,7 @@ import AddCameraModal from './components/AddCameraModal';
 import LiveViewPage from './pages/LiveViewPage';
 import CamerasPage from './pages/CamerasPage';
 import ModulesPage from './pages/ModulesPage';
+import AlertsPage from './pages/AlertsPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 
 export default function App() {
@@ -13,6 +14,20 @@ export default function App() {
   const [cameras, setCameras] = useState([]);
   const [systemInfo, setSystemInfo] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [alerts, setAlerts] = useState([]);
+  const [selectedAlert, setSelectedAlert] = useState(null);
+  const [alertCameras, setAlertCameras] = useState({});
+
+  const handleNewAlertCamera = (camId) => {
+    setAlertCameras((prev) => ({ ...prev, [camId]: true }));
+    setTimeout(() => {
+      setAlertCameras((prev) => {
+        const next = { ...prev };
+        delete next[camId];
+        return next;
+      });
+    }, 3000);
+  };
 
   // Poll cameras every 2 seconds per M08 spec
   useEffect(() => {
@@ -26,6 +41,16 @@ export default function App() {
     fetchCameras();
     const interval = setInterval(fetchCameras, 2000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Fetch initial alerts
+  useEffect(() => {
+    fetch('/api/alerts?limit=20')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.items) setAlerts(data.items);
+      })
+      .catch(() => {});
   }, []);
 
   // Fetch system info
@@ -98,7 +123,7 @@ export default function App() {
 
         <div className="flex-1 flex overflow-hidden">
           <main className="flex-1 flex flex-col min-w-0 bg-[#0b0f19]">
-            {activeTab === 'live' && <LiveViewPage cameras={cameras} />}
+            {activeTab === 'live' && <LiveViewPage cameras={cameras} alertCameras={alertCameras} />}
             {activeTab === 'cameras' && (
               <CamerasPage
                 cameras={cameras}
@@ -109,12 +134,25 @@ export default function App() {
                 systemInfo={systemInfo}
               />
             )}
-            {activeTab === 'events' && <PlaceholderPage title="Events History" moduleCode="M04 / M07" />}
+            {activeTab === 'events' && (
+              <AlertsPage
+                cameras={cameras}
+                selectedAlert={selectedAlert}
+                setSelectedAlert={setSelectedAlert}
+              />
+            )}
             {activeTab === 'modules' && <ModulesPage />}
             {activeTab === 'settings' && <PlaceholderPage title="System Settings" moduleCode="M18" />}
           </main>
 
-          <AlertsPanel />
+          <AlertsPanel
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            onSelectAlert={setSelectedAlert}
+            alerts={alerts}
+            setAlerts={setAlerts}
+            onNewAlertCamera={handleNewAlertCamera}
+          />
         </div>
       </div>
 

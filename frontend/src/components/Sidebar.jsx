@@ -5,8 +5,8 @@ export default function Sidebar({ activeTab, setActiveTab }) {
   const navItems = [
     { id: 'live', label: 'Live Grid', icon: Video },
     { id: 'cameras', label: 'Cameras', icon: Camera },
-    { id: 'events', label: 'Events Feed', icon: Bell, placeholder: true },
-    { id: 'modules', label: 'AI Modules', icon: Cpu, placeholder: true },
+    { id: 'events', label: 'Alerts Log', icon: Bell },
+    { id: 'modules', label: 'AI Modules', icon: Cpu },
     { id: 'settings', label: 'Settings', icon: Settings, placeholder: true },
   ];
 
